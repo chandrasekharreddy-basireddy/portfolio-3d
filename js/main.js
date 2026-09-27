@@ -33,15 +33,15 @@
   var statusEl = loaderEl.querySelector('.status');
   var ASSET_URLS = {
     walker: 'models/walker.glb',
-    fox: 'https://raw.githubusercontent.com/KhronosGroup/glTF-Sample-Models/master/2.0/Fox/glTF-Binary/Fox.glb',
-    horse: 'https://raw.githubusercontent.com/mrdoob/three.js/r128/examples/models/gltf/Horse.glb',
-    flamingo: 'https://raw.githubusercontent.com/mrdoob/three.js/r128/examples/models/gltf/Flamingo.glb',
+    fox: 'models/fox.glb',
+    horse: 'models/horse.glb',
+    flamingo: 'models/flamingo.glb',
     friend: 'models/friend.glb',
     angler: 'models/angler.glb',
     clipsIdle: 'models/clips-idle.json',
     clipsWalk: 'models/clips-walk.json',
     clipsRun: 'models/clips-run.json',
-    photo: 'assets/profile.jpg',
+    photo: 'assets/photo.b64',
     face: 'assets/face.b64',
     wolf: 'models/wolf.fbx',
     ironman: 'models/ironman.glb',
@@ -49,7 +49,9 @@
     toucan: 'models/toucan.glb',
     bird: 'models/bird.glb',
     monkey: 'models/monkey.glb',
-    flower: 'models/flower.glb'
+    flower: 'models/flower.glb',
+    fallroad: 'models/fallroad.glb',
+    birch: 'models/birch.glb'
   };
   var ASSETS = { walker: null, friend: null, angler: null, fox: null, horse: null, flamingo: null, clips: null, photo: null, face: null, wolf: null, ironman: null, peacock: null, toucan: null, bird: null, monkey: null, flower: null, fallroad: null, birch: null };
   var LOAD_GROUPS = {
@@ -112,12 +114,13 @@
             ASSETS.clips = [ASSETS.clipsIdle, ASSETS.clipsWalk, ASSETS.clipsRun];
           }
           step(key);
-        });
+        }).catch(function () { GAME.errors.push('asset failed: ' + key); step(key); });
       } else if (key === 'face') {
         var chunkUrls = [];
         for (var fi = 1; fi <= 9; fi++) chunkUrls.push(url + '.' + fi);
         Promise.all(chunkUrls.map(function (cu) { return fetch(cu).then(function (r) { return r.arrayBuffer(); }); }))
           .then(function (bufs) {
+            if (!bufs.length) throw new Error('face missing');
             var total = 0;
             bufs.forEach(function (b) { total += b.byteLength; });
             var bytes = new Uint8Array(total);
@@ -125,19 +128,21 @@
             bufs.forEach(function (b) { bytes.set(new Uint8Array(b), off); off += b.byteLength; });
             var img = new Image();
             img.onload = function () { ASSETS.face = img; step(key); };
+            img.onerror = function () { step(key); };
             img.src = URL.createObjectURL(new Blob([bytes], { type: 'image/jpeg' }));
-          });
+          }).catch(function () { GAME.errors.push('asset failed: ' + key); step(key); });
       } else if (key === 'photo') {
         if (window.__PHOTO_URI) {
           new THREE.TextureLoader().load(window.__PHOTO_URI, function (t) {
             t.encoding = THREE.sRGBEncoding;
             ASSETS.photo = t;
             step(key);
-          });
+          }, undefined, function () { step(key); });
         } else {
           var parts = [];
           for (var pi = 1; pi <= 8; pi++) parts.push(fetch('assets/photo.b64.' + pi).then(function (r) { return r.text(); }));
           Promise.all(parts).then(function (txts) {
+            if (!txts.join('')) throw new Error('photo missing');
             var bin = atob(txts.join(''));
             var bytes = new Uint8Array(bin.length);
             for (var bi = 0; bi < bin.length; bi++) bytes[bi] = bin.charCodeAt(bi);
@@ -145,15 +150,15 @@
             new THREE.TextureLoader().load(URL.createObjectURL(blob), function (t) {
               t.encoding = THREE.sRGBEncoding;
               ASSETS.photo = t;
-              step();
-            });
-          });
+              step(key);
+            }, undefined, function () { step(key); });
+          }).catch(function () { GAME.errors.push('asset failed: ' + key); step(key); });
         }
       } else {
         fetch(url).then(function (r) { return r.arrayBuffer(); }).then(function (buf) {
           ASSETS[key] = buf;
           step(key);
-        });
+        }).catch(function () { GAME.errors.push('asset failed: ' + key); step(key); });
       }
     });
     function step(key) {
@@ -478,10 +483,12 @@
       scene.add(r.obj);
     });
     attachAnimal(ASSETS.fox, 0.0065, 'Walk', 1.0, function (r) {
+      if (!r) return;
       foxRig = r;
       addInteract({ id: 'pet-fox', label: 'PET THE FOX', pos: r.obj.position, radius: 2.6, action: function () { petAnimal('fox'); } });
     });
     attachAnimal(ASSETS.horse, 0.005, 'horse', 0.85, function (r) {
+      if (!r) return;
       horseRig = r;
       addInteract({ id: 'pet-horse', label: 'PET THE HORSE', pos: r.obj.position, radius: 3.2, action: function () { petAnimal('horse'); } });
     });
@@ -720,14 +727,11 @@
   function openCard(id) {
     document.querySelectorAll('.card.open').forEach(function (c) { c.classList.remove('open'); });
     var el = document.getElementById('card-' + id);
-    if (el) el.classList.add('open');
-    if (id === 'projects' && window.DATA) {
-      DATA.PORTFOLIO.projects.forEach(function (p) { STATE.openProject(p.id); });
-      if (STATE.data.projectsOpen.length >= 4 && STATE.unlock('project-explorer')) {
-        toastMsg('ACHIEVEMENT: PROJECT EXPLORER'); dingSound(880);
-      }
-    }
+    if (el) { el.classList.add('open'); document.body.classList.add('card-open'); }
   }
+  document.querySelectorAll('.card .x').forEach(function (x) {
+    x.addEventListener('click', function () { document.body.classList.remove('card-open'); });
+  });
   document.querySelectorAll('.card .x').forEach(function (x) {
     x.onclick = function () { x.parentElement.classList.remove('open'); };
   });
@@ -739,7 +743,10 @@
       STATE.seeSeason(sn);
       if (['summer', 'rainy', 'monsoon', 'winter'].every(function (x) { return STATE.data.seasonsSeen.indexOf(x) >= 0; })
           && STATE.unlock('weathered')) { toastMsg('ACHIEVEMENT: WEATHERED'); dingSound(880); }
-      document.querySelectorAll('.se-btn').forEach(function (x) { x.classList.toggle('on', x === b); });
+      document.querySelectorAll('.se-btn').forEach(function (x) {
+        x.classList.toggle('on', x === b);
+        x.setAttribute('aria-pressed', x === b ? 'true' : 'false');
+      });
     };
   });
   var zoom = 1;
@@ -829,8 +836,17 @@
   function applyQuality(q) {
     renderer.setPixelRatio(q === 'high' ? M.min(2, window.devicePixelRatio) : 1);
     renderer.shadowMap.enabled = q === 'high';
+    /* r128 needs explicit material recompile when shadow support toggles */
+    scene.traverse(function (o) { if (o.material) { var mm = Array.isArray(o.material) ? o.material : [o.material]; mm.forEach(function (mat) { mat.needsUpdate = true; }); } });
     W.AudioSys.setEnabled(soundOn);
   }
+  (function syncQualityUI() {
+    var savedQ = null;
+    try { savedQ = localStorage.getItem('csq'); } catch (e) {}
+    if (savedQ === 'low') {
+      document.querySelectorAll('#opt-quality .opt').forEach(function (b) { b.classList.toggle('on', b.getAttribute('data-q') === 'low'); });
+    }
+  })();
 
   soundBtn.onclick = function () {
     soundOn = !soundOn;
@@ -880,6 +896,7 @@
   function endIntro() {
     if (GAME.state !== 'intro') return;
     GAME.state = 'playing';
+    GAME._justLeftIntro = performance.now();
     GAME.startTime = performance.now();
     skipBtn.style.display = 'none';
     document.getElementById('lbx-t').style.height = '0';
@@ -947,13 +964,24 @@
   window.addEventListener('keydown', function (ev) {
     if (ev.key === 'Escape') {
       ev.preventDefault();
+      if (GAME.state === 'ending') { finishEnding(); return; }
+      if (GAME.state === 'intro') return; /* intro handles its own input */
+      if (performance.now() - (GAME._justLeftIntro || 0) < 600) return; /* don't double-fire right after intro */
       if (GAME.state === 'paused') { togglePause(); return; }
+      var anyPanel = document.querySelector('.card.open') || document.getElementById('journey').classList.contains('on') || document.getElementById('complete').classList.contains('on');
+      if (anyPanel) {
+        document.querySelectorAll('.card.open').forEach(function (c) { c.classList.remove('open'); });
+        document.body.classList.remove('card-open');
+        document.getElementById('journey').classList.remove('on');
+        return;
+      }
       if (tour.on || photo.on || cinema.on) { exitModes(); return; }
       togglePause();
     }
     var k2 = ev.key.toLowerCase();
-    if (k2 === 'p' && GAME.state === 'playing') { if (photo.on) exitModes(); else enterPhoto(); }
-    if (k2 === 'c' && GAME.state === 'playing') { if (cinema.on) exitModes(); else enterCinema(); }
+    if (GAME.state !== 'playing') return;
+    if (k2 === 'p') { if (photo.on) exitModes(); else enterPhoto(); }
+    if (k2 === 'c') { if (cinema.on) exitModes(); else enterCinema(); }
   });
 
   /* ---------- final cinematic ending ---------- */
@@ -974,7 +1002,7 @@
     GAME.state = 'playing';
     document.getElementById('lbx-t').style.height = '0';
     document.getElementById('lbx-b').style.height = '0';
-    var secs = M.round((performance.now() - GAME.startTime) / 1000);
+    var secs = M.round(STATE.data.playSec + (performance.now() - GAME.startTime) / 1000);
     document.getElementById('stat-time').textContent = M.floor(secs / 60) + ':' + ('0' + secs % 60).slice(-2);
     document.getElementById('stat-season').textContent = GAME.season.charAt(0).toUpperCase() + GAME.season.slice(1);
     completeEl.classList.add('on');
@@ -1092,7 +1120,7 @@
     walker: ['Nice weather for a walk today.', 'The lake view is better up ahead.', 'Have you met the horse yet?'],
     walker2: ['Almost at the projects board!', 'Night time here is magical. Try it.', 'Snow is my favorite season here.']
   };
-  var talkers = [];
+  var talkers = [], STATION_ZS = null;
   function registerTalker(rig, key) { var t = { rig: rig, key: key, el: null, line: 0, t: 0 }; talkers.push(t); return t; }
   var tmpV3 = new THREE.Vector3();
   function tickBubbles(dt) {
@@ -1113,8 +1141,11 @@
         var lines = NPC_TALK[T.key];
         if (T.key === 'friend') {
           var story = null;
-          for (var sI = 0; sI < STATIONS.length; sI++) {
-            if (M.abs(player.pos.z - W.trailPos(STATIONS[sI].p).z) < 7) { story = FRIEND_STORY[STATIONS[sI].id]; break; }
+          if (!STATION_ZS) {
+            STATION_ZS = STATIONS.map(function (s2) { return { z: W.trailPos(s2.p).z, id: s2.id }; });
+          }
+          for (var sI = 0; sI < STATION_ZS.length; sI++) {
+            if (M.abs(player.pos.z - STATION_ZS[sI].z) < 7) { story = FRIEND_STORY[STATION_ZS[sI].id]; break; }
           }
           lines = story ? [story].concat(FRIEND_BASE) : FRIEND_BASE;
         }
@@ -1205,6 +1236,7 @@
   document.getElementById('btn-jclose').onclick = function () { journeyEl.classList.remove('on'); };
   hudChip.onclick = openJourney;
   hudChip.style.cursor = 'pointer';
+  hudChip.addEventListener('keydown', function (ev) { if (ev.key === 'Enter' || ev.key === ' ') { ev.preventDefault(); openJourney(); } });
 
   /* ---------- game modes: guided tour, photo, cinematic ---------- */
   var HUD_ELS = null;
@@ -1224,6 +1256,7 @@
   }
   function enterTour() {
     exitModes();
+    if (GAME.state === 'paused') GAME.state = 'playing';
     tour.on = true;
     tour.i = 0; tour.hold = 0;
     walkMode = false;
@@ -1236,6 +1269,7 @@
   }
   function enterPhoto() {
     exitModes();
+    if (GAME.state === 'paused') GAME.state = 'playing';
     photo.on = true;
     photo.yaw = player.yaw + PI; photo.pitch = 0.3; photo.dist = 5.2;
     setHudVisible(false);
@@ -1245,6 +1279,7 @@
   }
   function enterCinema() {
     exitModes();
+    if (GAME.state === 'paused') GAME.state = 'playing';
     cinema.on = true;
     cinema.yaw = player.yaw + PI;
     setHudVisible(false);
@@ -1308,7 +1343,7 @@
           toastMsg('OBJECTIVE COMPLETE');
           dingSound(700);
         }
-      } else if (!next) { next = q; break; }
+      } else if (!next) { next = q; }
     }
     if (next) questTextEl.textContent = next.text;
     else {
@@ -1376,6 +1411,18 @@
     mmX.strokeRect(0.5, 0.5, W2 - 1, H2 - 1);
   }
 
+  function openProject(id) {
+    var P = null;
+    for (var i = 0; i < DATA.PORTFOLIO.projects.length; i++) if (DATA.PORTFOLIO.projects[i].id === id) P = DATA.PORTFOLIO.projects[i];
+    if (!P) return;
+    STATE.openProject(id);
+    openCard('projects');
+    toastMsg(P.no + ' · ' + P.name.toUpperCase());
+    if (STATE.data.projectsOpen.length >= DATA.PORTFOLIO.projects.length && STATE.unlock('project-explorer')) {
+      toastMsg('ACHIEVEMENT: PROJECT EXPLORER'); dingSound(880);
+    }
+  }
+
   /* ---------- interaction system ---------- */
   var promptBtn = document.getElementById('prompt');
   var promptTxt = document.getElementById('prompt-txt');
@@ -1398,7 +1445,7 @@
     if (currentInteract) {
       promptTxt.textContent = currentInteract.label;
       promptKey.style.display = isTouch() ? 'none' : 'inline-block';
-      promptBtn.style.display = 'block';
+      promptBtn.style.display = 'flex';
     } else promptBtn.style.display = 'none';
   }
   /* interaction camera: briefly lean toward the target */
@@ -1490,10 +1537,9 @@
   }
   var orbLineEl = document.getElementById('orbline');
   function tickOrbs(dt, t) {
-    var collectedAll = true;
     for (var i = 0; i < orbs.length; i++) {
       var o = orbs[i];
-      if (!o.visible) { if (!o.userData.got) collectedAll = false; continue; }
+      if (!o.visible) { continue; }
       o.rotation.y += dt * 2.2;
       o.position.y = o.userData.base + M.sin(t * 2.4 + i) * 0.1;
       var s2 = 1 + M.sin(t * 3 + i * 1.7) * 0.12;
@@ -1511,7 +1557,6 @@
         refreshQuest(true);
         continue;
       }
-      if (!o.userData.got) collectedAll = false;
     }
   }
 
@@ -1621,7 +1666,10 @@
     var runW = clamp((hSpeed - 1.5) / 2.2, 0, 1);
     var walkW = clamp(hSpeed / 1.25, 0, 1) * (1 - runW);
     var tot = M.max(0.001, idleW + walkW + runW);
-    GAME.animWeights = { idle: +(idleW / tot).toFixed(2), walk: +(walkW / tot).toFixed(2), run: +(runW / tot).toFixed(2) };
+    if (!GAME.animWeights) GAME.animWeights = { idle: 0, walk: 0, run: 0 };
+    GAME.animWeights.idle = +(idleW / tot).toFixed(2);
+    GAME.animWeights.walk = +(walkW / tot).toFixed(2);
+    GAME.animWeights.run = +(runW / tot).toFixed(2);
 
     if (modelReady) {
       playerRig.obj.position.copy(player.pos);
@@ -1650,7 +1698,7 @@
       var headTarget = 0;
       if (nearSt && idleW > 0.55) {
         tmpV.copy(nearSt.boardMid);
-        var local = playerRig.obj.worldToLocal(tmpV.clone());
+        var local = playerRig.obj.worldToLocal(tmpV);
         headTarget = clamp(M.atan2(-local.x, -local.z), -0.9, 0.9) * 0.55;
       }
       headTurn(playerRig, headTarget);
@@ -1678,7 +1726,7 @@
         if (!cur || cur.id !== 'card-' + openId) openCard(openId);
       } else if (!openId) {
         var cur2 = document.querySelector('.card.open');
-        if (cur2) cur2.classList.remove('open');
+        if (cur2) { cur2.classList.remove('open'); document.body.classList.remove('card-open'); }
       }
       var pct = clamp(smoothP, 0, 1) * 100;
       trailFill.style.width = pct + '%';
@@ -1727,7 +1775,7 @@
       var near = player.pos.distanceTo(fpx) < 12;
       if (near) {
         tmpV.copy(player.pos);
-        var lp = friendRig.obj.worldToLocal(tmpV.clone());
+        var lp = friendRig.obj.worldToLocal(tmpV);
         headTurn(friendRig, clamp(M.atan2(lp.x, -lp.z), -0.8, 0.8) * 0.6);
       } else {
         headTurn(friendRig, M.sin(tSec * 0.4) * 0.25);
@@ -1773,7 +1821,8 @@
       foxRig.mixer.update(dt);
     }
     tickInteract();
-    drawMinimap();
+    GAME._mmT = (GAME._mmT || 0) + dt;
+    if (GAME._mmT > 0.1) { GAME._mmT = 0; drawMinimap(); }
     tickFootprints(dt);
     try { PLACES.tick(dt, tSec, player, GAME); } catch (e) {}
     for (var hi = hearts.length - 1; hi >= 0; hi--) {
@@ -1783,7 +1832,11 @@
       hm2.position.x += hm2.userData.vx * dt;
       hm2.rotation.y += dt * 2;
       hm2.material.opacity = M.max(0, 1 - hm2.userData.t / 1.4);
-      if (hm2.userData.t > 1.4) { scene.remove(hm2); hearts.splice(hi, 1); }
+      if (hm2.userData.t > 1.4) {
+        scene.remove(hm2);
+        hm2.geometry.dispose(); hm2.material.dispose();
+        hearts.splice(hi, 1);
+      }
     }
     tickOrbs(dt, tSec);
     var nf = W.nightFactor();
@@ -1882,7 +1935,7 @@
   loadAll(function () {
     buildCharacters();
     buildStations();
-    try { PLACES.build({ scene: scene, W: W, addInteract: addInteract, openCard: openCard, HQ: W.HQ, DATA: DATA, toast: toastMsg, player: player }); }
+    try { PLACES.build({ scene: scene, W: W, addInteract: addInteract, openCard: openCard, openProject: openProject, HQ: W.HQ, DATA: DATA, toast: toastMsg, player: player }); }
     catch (e) { GAME.errors.push('places: ' + e.message); }
     buildOrbs();
     markGroup('world', true);
@@ -1891,6 +1944,8 @@
     // resume saved progress
     GAME.discovered = STATE.data.stops.slice();
     refreshQuest(false);
+    if (GAME.discovered.length >= 6) toastMsg('WELCOME BACK, TRAVELER');
+    else if (GAME.discovered.length > 0) toastMsg('WELCOME BACK — ' + GAME.discovered.length + ' / 6 STOPS FOUND');
     document.querySelector('#hud-chip .found').textContent = GAME.discovered.length + ' / 6 stops';
     STATIONS.forEach(function (st, i) {
       if (GAME.discovered.indexOf(st.id) >= 0) {

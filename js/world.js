@@ -254,7 +254,7 @@
     scene.add(pond);
     // real reflective water on high quality
     if (HQ()) {
-      new THREE.TextureLoader().load('https://raw.githubusercontent.com/mrdoob/three.js/r128/examples/textures/waternormals.jpg', function (nt) {
+      new THREE.TextureLoader().load('models/waternormals.jpg', function (nt) {
         nt.wrapS = nt.wrapT = THREE.RepeatWrapping;
         water = new THREE.Water(new THREE.PlaneGeometry(11.5, 11.5), {
           textureWidth: 512, textureHeight: 512,
@@ -272,6 +272,7 @@
     }
   }
   var water = null, waterBase = new THREE.Color(0x1e5666);
+  var DEEP_COLOR = new THREE.Color(0x134252);
 
   /* ---------- vegetation ---------- */
   var treeMats, trees = [], bushes = [], flowers = [], butterflies = [];
@@ -859,7 +860,7 @@
     }
     if (water) {
       var dS = SEASONS[curSeason];
-      waterBase.setHex(dS.waterA).multiplyScalar(0.55).lerp(new THREE.Color(0x134252), 0.35);
+      waterBase.setHex(dS.waterA).multiplyScalar(0.55).lerp(DEEP_COLOR, 0.35);
       water.material.uniforms.waterColor.value.copy(waterBase).multiplyScalar(1 - nightF * 0.7);
     }
     advanceClock(dt);

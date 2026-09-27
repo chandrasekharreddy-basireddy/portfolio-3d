@@ -2,14 +2,14 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="description" content="Chandra Sekhar Reddy - a 3D walking portfolio. Second-year B.Tech Computer Science student at Sai University.">
 <title>Chandra Sekhar Reddy - A Walk Through My Work</title>
 <link rel="icon" href="assets/favicon.png" type="image/png">
 <link rel="stylesheet" href="css/style.css">
 </head>
 <body>
-<canvas id="world-canvas"></canvas>
+<canvas id="world-canvas" aria-label="Chandra's 3D portfolio world. Scroll to walk, or enable free walk with WASD."></canvas>
 <div id="scroll-space"></div>
 <div id="fade"></div>
 <div id="hud-fx"></div>
@@ -70,7 +70,7 @@
 </div>
 
 <div id="hud">
-  <div id="hud-chip">
+  <div id="hud-chip" role="button" tabindex="0" aria-label="Open journey and achievements">
     <div class="who"><b>Chandra Sekhar Reddy</b><span class="found">0 / 6 stops</span><span id="orbline">ORBS 0/10</span></div>
     <div class="trailbar">
       <i id="trail-fill"></i>
@@ -98,8 +98,8 @@
 </div>
 <div id="bubbles"></div>
 <div id="quest"><div class="q-tag">OBJECTIVE</div><div class="q-text" id="quest-text">Walk the trail</div></div>
-<div id="skillpop"><div class="sp-name">SKILL</div><div class="sp-desc"></div></div>
-<canvas id="minimap" width="128" height="230"></canvas>
+<div id="skillpop" aria-live="polite"><div class="sp-name">SKILL</div><div class="sp-desc"></div></div>
+<canvas id="minimap" width="128" height="230" aria-hidden="true"></canvas>
 <div id="joy"><div id="joy-knob"></div></div>
 <div id="lbx-t"></div>
 <div id="lbx-b"></div>
@@ -109,7 +109,7 @@
 </div>
 <div id="press-any">PRESS ANY KEY TO ENTER</div>
 <button id="btn-skip">SKIP &raquo;</button>
-<div id="toast"></div>
+<div id="toast" aria-live="polite"></div>
 <button id="prompt"><b id="prompt-key">E</b><span id="prompt-txt">INTERACT</span></button>
 
 <div class="card" id="card-home" aria-label="Introduction">
@@ -139,6 +139,7 @@
     <span class="chip">JavaScript</span><span class="chip">HTML</span><span class="chip">CSS</span>
     <span class="chip">FastAPI</span><span class="chip">PostgreSQL</span><span class="chip">Redis</span>
     <span class="chip">Next.js</span><span class="chip">TypeScript</span><span class="chip">Power BI</span><span class="chip">n8n</span>
+    <span class="chip">Git & GitHub</span>
   </div>
   <p class="small">Right now: practicing DSA in Python and C, and going deeper on backend work with FastAPI and PostgreSQL.</p>
   <p class="small" id="skillcount">Skills discovered in the world: 0 / 14</p>
@@ -226,10 +227,11 @@
   </div>
 </div>
 
-<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/GLTFLoader.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/FBXLoader.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/objects/Water.js"></script>
+<script src="js/vendor/three.min.js"></script>
+<script src="js/vendor/fflate.js"></script>
+<script src="js/vendor/GLTFLoader.js"></script>
+<script src="js/vendor/FBXLoader.js"></script>
+<script src="js/vendor/Water.js"></script>
 <script src="js/data.js"></script>
 <script src="js/state.js"></script>
 <script src="js/world.js"></script>

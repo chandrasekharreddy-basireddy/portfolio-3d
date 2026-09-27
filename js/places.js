@@ -28,7 +28,7 @@
 
   function build(ctx) {
     var scene = ctx.scene, W = ctx.W, addInteract = ctx.addInteract, openCard = ctx.openCard,
-      HQ = ctx.HQ, DATA = ctx.DATA, toast = ctx.toast, player = ctx.player;
+      openProject = ctx.openProject, HQ = ctx.HQ, DATA = ctx.DATA, toast = ctx.toast, player = ctx.player;
     var SK = DATA.PORTFOLIO.skills;
 
     /* ============ SKILLS FOREST (west of the trail, z 8..24) ============ */
@@ -156,7 +156,7 @@
     building(-9.2, -7.0, 4.6, 2.6, 3.2, 'SURVIVAL SCHOOL', 'MCQ learning platform · FastAPI · Next.js');
     addInteract({
       id: 'p01', label: 'EXPLORE SURVIVAL SCHOOL', pos: new THREE.Vector3(-9.2, W.terrainHeight(-9.2, -5.2), -5.2), radius: 3.8,
-      action: function () { openCard('projects'); toast('P01 · Survival School'); }
+      action: function () { openProject('survival-school'); }
     });
     // P02 Signal-Lite - communication mast
     (function () {
@@ -190,7 +190,7 @@
       scene.add(g);
       addInteract({
         id: 'p02', label: 'EXPLORE SIGNAL-LITE', pos: new THREE.Vector3(mx, my + 1, mz), radius: 3.6,
-        action: function () { openCard('projects'); toast('P02 · Signal-Lite'); }
+        action: function () { openProject('signal-lite'); }
       });
     })();
     // P03 SaiU V2 - campus block
@@ -215,7 +215,7 @@
       scene.add(g);
       addInteract({
         id: 'p03', label: 'EXPLORE SAIU V2', pos: new THREE.Vector3(sx, sy + 1, sz + 1.8), radius: 3.6,
-        action: function () { openCard('projects'); toast('P03 · SaiU V2 — Student OS'); }
+        action: function () { openProject('saiu-v2'); }
       });
     })();
     // P04 reserved plot
@@ -245,7 +245,7 @@
       scene.add(g);
       addInteract({
         id: 'p04', label: 'READ THE RESERVED PLOT', pos: new THREE.Vector3(px2, py + 1, pz2), radius: 3.2,
-        action: function () { openCard('projects'); toast('Whatever comes next, it starts here'); }
+        action: function () { openProject('next'); }
       });
     })();
 
