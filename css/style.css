@@ -109,6 +109,9 @@ body { overscroll-behavior-y: none; }
   #seasons { top: 14px; right: 10px; bottom: auto; flex-direction: column; flex-wrap: nowrap; justify-content: flex-end; max-width: none; }
   .se-btn { font-size: 10px; padding: 7px 10px; min-width: 92px; text-align: center; }
   #btn-sound { top: 146px; bottom: auto; right: 10px; font-size: 10px; padding: 7px 8px; min-width: 92px; text-align: center; border-radius: 2px; background: rgba(13,22,32,.6); border: 1px solid rgba(255,255,255,.14); color: #cfe0ec; }
+  #btn-time, #btn-walk, #btn-share { top: 186px; bottom: auto; right: 10px; min-width: 92px; text-align: center; padding: 7px 8px; font-size: 10px; }
+  #btn-walk { top: 218px; }
+  #btn-share { top: 250px; }
   #viewbtns { top: 50%; bottom: auto; right: 10px; transform: translateY(-50%); }
   #navrail.on { display: flex; flex-wrap: wrap; justify-content: center; }
   #navrail { flex-wrap: wrap; width: calc(100vw - 20px); left: 10px; transform: none; bottom: 10px; }
@@ -119,9 +122,10 @@ body { overscroll-behavior-y: none; }
 }
 
 /* ---------- time + walk buttons ---------- */
-#btn-time, #btn-walk { position: fixed; top: 84px; right: 16px; z-index: 20; display: none; font-family: var(--hud); font-size: 10px; letter-spacing: 2px; text-transform: uppercase; color: #9fb4c6; background: rgba(13,22,32,.6); border: 1px solid rgba(255,255,255,.14); padding: 6px 11px; border-radius: 2px; cursor: pointer; }
+#btn-time, #btn-walk, #btn-share { position: fixed; top: 84px; right: 16px; z-index: 20; display: none; font-family: var(--hud); font-size: 10px; letter-spacing: 2px; text-transform: uppercase; color: #9fb4c6; background: rgba(13,22,32,.6); border: 1px solid rgba(255,255,255,.14); padding: 6px 11px; border-radius: 2px; cursor: pointer; }
 #btn-walk { top: 116px; color: #ffd98a; border-color: rgba(232,176,75,.35); }
-#btn-time:hover, #btn-walk:hover { color: #fff; border-color: rgba(255,255,255,.4); }
+#btn-share { top: 148px; color: #ffd98a; border-color: rgba(232,176,75,.35); }
+#btn-time:hover, #btn-walk:hover, #btn-share:hover { color: #fff; border-color: rgba(255,255,255,.4); }
 
 /* ---------- joystick ---------- */
 #joy { position: fixed; bottom: 96px; left: 18px; width: 112px; height: 112px; border-radius: 50%; border: 1px solid rgba(255,255,255,.22); background: rgba(13,22,32,.4); backdrop-filter: blur(4px); z-index: 22; display: none; touch-action: none; }

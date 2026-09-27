@@ -624,12 +624,30 @@
     W.AudioSys.setEnabled(soundOn);
     menu.classList.remove('on');
   };
+  /* share */
+  document.getElementById('btn-share').onclick = function () {
+    var url = location.origin + location.pathname;
+    function ok() { toastMsg('LINK COPIED — SHARE THE TRAIL'); }
+    function fallback() {
+      var ta = document.createElement('textarea');
+      ta.value = url; ta.style.position = 'fixed'; ta.style.opacity = '0';
+      document.body.appendChild(ta); ta.select();
+      try { document.execCommand('copy'); ok(); }
+      catch (e) { toastMsg('COPY FAILED — ' + url); }
+      document.body.removeChild(ta);
+    }
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(url).then(ok, fallback);
+    } else { fallback(); }
+  };
+
   function showHud() {
     hudChip.style.display = 'block';
     seasonsBar.style.display = 'flex';
     soundBtn.style.display = 'block';
     document.getElementById('btn-time').style.display = 'block';
     document.getElementById('btn-walk').style.display = 'block';
+    document.getElementById('btn-share').style.display = 'block';
     navrail.style.display = 'flex';
     viewbtns.style.display = 'flex';
   }
