@@ -1799,6 +1799,8 @@
     }
     /* birdsong during the day */
     if (nf < 0.4 && M.random() < dt / 11) W.AudioSys.chirp();
+    /* ambient music pad drifts between chords */
+    try { W.AudioSys.tickPad(dt); } catch (e) {}
     for (var li = 0; li < lamps.length; li++) {
       lamps[li].light.intensity = 0.55 + nf * 1.05;
       lamps[li].bulb.visible = nf > 0.08;

@@ -975,6 +975,51 @@
       return buf;
     }
     var wfG = null;
+    var padOsc = [], padG = null, padChord = 0, padTimer = 0;
+    var CHORDS = [[110, 130.81, 164.81], [87.31, 110, 130.81], [98, 123.47, 146.83], [110, 138.59, 164.81]];
+    function initPad() {
+      padG = ctx.createGain();
+      padG.gain.value = 0;
+      var padFilt = ctx.createBiquadFilter();
+      padFilt.type = 'lowpass'; padFilt.frequency.value = 760; padFilt.Q.value = 0.4;
+      padG.connect(master);
+      padFilt.connect(padG);
+      for (var i = 0; i < 3; i++) {
+        var o = ctx.createOscillator();
+        o.type = 'triangle';
+        o.frequency.value = CHORDS[0][i];
+        var og = ctx.createGain();
+        og.gain.value = 0.33;
+        o.connect(og); og.connect(padFilt);
+        o.start();
+        padOsc.push(o);
+      }
+      // slow breathing on the filter for movement
+      var lfo2 = ctx.createOscillator();
+      lfo2.frequency.value = 0.05;
+      var lfo2g = ctx.createGain();
+      lfo2g.gain.value = 240;
+      lfo2.connect(lfo2g); lfo2g.connect(padFilt.frequency);
+      lfo2.start();
+    }
+    function tickPad(dt) {
+      if (!padOsc.length) return;
+      padTimer += dt;
+      if (padTimer > 26) {
+        padTimer = 0;
+        padChord = (padChord + 1) % CHORDS.length;
+        var t2 = ctx.currentTime;
+        for (var i = 0; i < padOsc.length; i++) {
+          padOsc[i].frequency.cancelScheduledValues(t2);
+          padOsc[i].frequency.setValueAtTime(padOsc[i].frequency.value, t2);
+          padOsc[i].frequency.linearRampToValueAtTime(CHORDS[padChord][i], t2 + 7);
+        }
+      }
+    }
+    function setPadLevel(level) {
+      if (!padG) return;
+      try { padG.gain.linearRampToValueAtTime(enabled ? level : 0, ctx.currentTime + 2.5); } catch (e) {}
+    }
     function init() {
       if (started || !enabled) return;
       try {
@@ -1015,6 +1060,8 @@
         lfo.connect(lfoG); lfoG.connect(windG.gain);
         lfo.start();
         started = true;
+        initPad();
+        setPadLevel(0.045);
         setSeason(curSeason);
       } catch (e) { ctx = null; }
     }
@@ -1105,7 +1152,7 @@
       } catch (e) {}
     }
     return { init: init, setSeason: setSeason, thunder: thunder, setEnabled: setEnabled, ding: ding, isEnabled: function () { return enabled; },
-      setWaterfall: setWaterfall, stepSnd: stepSnd, chirp: chirp };
+      setWaterfall: setWaterfall, stepSnd: stepSnd, chirp: chirp, tickPad: tickPad, setPadLevel: setPadLevel };
   })();
 
   window.WORLD = {
