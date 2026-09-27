@@ -1887,7 +1887,7 @@
           openId = st.id;
         }
       }
-      if (openId && !walkMode && performance.now() - (GAME._cardHold || 0) > 2500) {
+      if (openId && !walkMode && !(GAME._cardHold && performance.now() - GAME._cardHold < 2500)) {
         var cur = document.querySelector('.card.open');
         if (!cur || cur.id !== 'card-' + openId) openCard(openId);
       } else if (!openId) {
