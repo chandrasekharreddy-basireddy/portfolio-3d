@@ -61,16 +61,15 @@
         });
       } else if (key === 'face') {
         var chunkUrls = [];
-        for (var fi = 1; fi <= 7; fi++) chunkUrls.push(url + '.' + fi);
+        for (var fi = 1; fi <= 9; fi++) chunkUrls.push(url + '.' + fi);
         Promise.all(chunkUrls.map(function (cu) { return fetch(cu).then(function (r) { return r.text(); }); }))
           .then(function (txts) {
             var bin = atob(txts.join(''));
             var bytes = new Uint8Array(bin.length);
             for (var fi2 = 0; fi2 < bin.length; fi2++) bytes[fi2] = bin.charCodeAt(fi2);
-            var blob2 = new Blob([bytes], { type: 'image/jpeg' });
-            new THREE.TextureLoader().load(URL.createObjectURL(blob2), function (t) {
-              t.flipY = false; t.encoding = THREE.sRGBEncoding; ASSETS.face = t; step();
-            });
+            var img = new Image();
+            img.onload = function () { ASSETS.face = img; step(); };
+            img.src = URL.createObjectURL(new Blob([bytes], { type: 'image/jpeg' }));
           });
       } else if (key === 'photo') {
         if (window.__PHOTO_URI) {
@@ -342,8 +341,28 @@
       r.obj.traverse(function (o) {
         if (!o.isMesh) return;
         if (o.name === 'Wolf3D_Facewear' || o.name === 'Wolf3D_Headwear') o.visible = false;
-        if (o.name === 'Wolf3D_Head' && ASSETS.face) {
-          o.material.map = ASSETS.face;
+        if (o.name === 'Wolf3D_Head' && ASSETS.face && o.material.map) {
+          var cv = document.createElement('canvas'); cv.width = cv.height = 512;
+          var cc = cv.getContext('2d');
+          cc.drawImage(o.material.map.image, 0, 0);
+          var tc = document.createElement('canvas'); tc.width = tc.height = 512;
+          var tcc = tc.getContext('2d');
+          tcc.drawImage(ASSETS.face, 0, 0, ASSETS.face.width, ASSETS.face.height, 95, 28, 320, 380);
+          tcc.globalCompositeOperation = 'destination-in';
+          tcc.save();
+          tcc.translate(255, 218);
+          tcc.scale(128 / 152, 1);
+          var rg = tcc.createRadialGradient(0, 0, 118, 0, 0, 152);
+          rg.addColorStop(0, 'rgba(0,0,0,1)');
+          rg.addColorStop(1, 'rgba(0,0,0,0)');
+          tcc.fillStyle = rg;
+          tcc.fillRect(-160, -160, 320, 320);
+          tcc.restore();
+          cc.drawImage(tc, 0, 0);
+          var ft2 = new THREE.CanvasTexture(cv);
+          ft2.flipY = false;
+          ft2.encoding = THREE.sRGBEncoding;
+          o.material.map = ft2;
           o.material.needsUpdate = true;
         }
       });
