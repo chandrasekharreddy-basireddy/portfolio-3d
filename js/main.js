@@ -20,12 +20,12 @@
   var statusEl = loaderEl.querySelector('.status');
   var startBtn = document.getElementById('btn-start');
   var ASSET_URLS = {
-    avatar: 'https://raw.githubusercontent.com/nartc/ngt-lipsync/4dfb6de6b8c99aa6b16efba4a65377e29a2bc483/public/67219b35aa658e812daccbd7.glb',
+    walker: 'models/walker.glb',
     fox: 'https://raw.githubusercontent.com/KhronosGroup/glTF-Sample-Models/master/2.0/Fox/glTF-Binary/Fox.glb',
     horse: 'https://raw.githubusercontent.com/mrdoob/three.js/r128/examples/models/gltf/Horse.glb',
     flamingo: 'https://raw.githubusercontent.com/mrdoob/three.js/r128/examples/models/gltf/Flamingo.glb',
-    female: 'https://cdn.jsdelivr.net/gh/readyplayerme/visage@github-pages/public/female.glb',
-    maleb: 'https://cdn.jsdelivr.net/gh/readyplayerme/visage@github-pages/public/male.glb',
+    friend: 'models/friend.glb',
+    angler: 'models/angler.glb',
     clipsIdle: 'models/clips-idle.json',
     clipsWalk: 'models/clips-walk.json',
     clipsRun: 'models/clips-run.json',
@@ -39,15 +39,15 @@
     monkey: 'models/monkey.glb',
     flower: 'models/flower.glb'
   };
-  var ASSETS = { avatar: null, female: null, maleb: null, fox: null, horse: null, flamingo: null, clips: null, photo: null, face: null, wolf: null, ironman: null, peacock: null, toucan: null, bird: null, monkey: null, flower: null };
-  var LOAD_TOTAL = 18, loadedCount = 0;
+  var ASSETS = { walker: null, friend: null, angler: null, fox: null, horse: null, flamingo: null, clips: null, photo: null, face: null, wolf: null, ironman: null, peacock: null, toucan: null, bird: null, monkey: null, flower: null, fallroad: null, birch: null };
+  var LOAD_TOTAL = 20, loadedCount = 0;
   var loaders = [
-    ['avatar', ASSET_URLS.avatar, 'loading the walker'],
+    ['walker', ASSET_URLS.walker, 'loading the walker'],
     ['fox', ASSET_URLS.fox, 'waking the fox'],
     ['horse', ASSET_URLS.horse, 'leading out the horse'],
     ['flamingo', ASSET_URLS.flamingo, 'calling the flamingos'],
-    ['female', ASSET_URLS.female, 'meeting a friend'],
-    ['maleb', ASSET_URLS.maleb, 'greeting the angler'],
+    ['friend', ASSET_URLS.friend, 'meeting a friend'],
+    ['angler', ASSET_URLS.angler, 'greeting the angler'],
     ['clipsIdle', ASSET_URLS.clipsIdle, 'rehearsing movements'],
     ['clipsWalk', ASSET_URLS.clipsWalk, 'rehearsing movements'],
     ['clipsRun', ASSET_URLS.clipsRun, 'rehearsing movements'],
@@ -59,7 +59,9 @@
     ['toucan', ASSET_URLS.toucan, 'inviting the toucan'],
     ['bird', ASSET_URLS.bird, 'releasing the birds'],
     ['monkey', ASSET_URLS.monkey, 'finding the monkey'],
-    ['flower', ASSET_URLS.flower, 'planting the flowers']
+    ['flower', ASSET_URLS.flower, 'planting the flowers'],
+    ['fallroad', ASSET_URLS.fallroad, 'paving the fall road'],
+    ['birch', ASSET_URLS.birch, 'planting the birches']
   ];
   function loadAll(done) {
     loaders.forEach(function (item) {
@@ -274,7 +276,7 @@
   }
   function makeCharacter(opts, onReady) {
     try {
-      gltfLoader.parse(ASSETS[opts.src || 'avatar'], '', function (g) {
+      gltfLoader.parse(ASSETS[opts.src || 'walker'], '', function (g) {
         try {
           var obj = g.scene;
           var mats = {};
@@ -304,7 +306,7 @@
           });
           var head = null, hand = null, armL = null, armR = null, spine = null;
           obj.traverse(function (o) {
-            if (!o.isBone) return;
+            if (!o.isBone && o.type !== 'Object3D') return;
             if (o.name === 'Head' && !head) head = o;
             if (o.name === 'RightHand' && !hand) hand = o;
             if (o.name === 'LeftArm' && !armL) armL = o;
@@ -356,7 +358,7 @@
 
   function buildCharacters() {
     buildClips();
-    makeCharacter({ src: 'maleb', keepOutfit: true }, function (r) {
+    makeCharacter({ src: 'walker', keepOutfit: true }, function (r) {
       if (!r) return;
       playerRig = r;
       r.obj.traverse(function (o) {
@@ -395,7 +397,7 @@
       GAME.model = r.obj;
       GAME.modelLoaded = true;
     });
-    makeCharacter({ src: 'female', keepOutfit: true }, function (r) {
+    makeCharacter({ src: 'friend', keepOutfit: true }, function (r) {
       if (!r) return;
       friendRig = r;
       registerTalker(friendRig, 'friend');
@@ -405,8 +407,8 @@
     [
       { t0: 0.13, t1: 0.38, x: 1.6, top: 0x6f8a4f, bottom: 0x4a4a4a, speed: 1.05 },
       { t0: 0.60, t1: 0.90, x: -1.6, top: 0xa8685c, bottom: 0x39434f, speed: 0.95 }
-    ].forEach(function (w) {
-      makeCharacter({ top: w.top, bottom: w.bottom }, function (r) {
+    ].forEach(function (w, wi) {
+      makeCharacter({ src: wi === 0 ? 'friend' : 'angler', top: w.top, bottom: w.bottom }, function (r) {
         if (!r) return;
         var npc = { rig: r, t: w.t0, dir: 1, x: w.x, t0: w.t0, t1: w.t1, speed: w.speed };
         npcs.push(npc);
@@ -416,35 +418,17 @@
         scene.add(r.obj);
       });
     });
-    makeCharacter({ src: 'maleb', top: 0xc9b48a, bottom: 0x707a86 }, function (r) {
+    makeCharacter({ src: 'angler', keepOutfit: true }, function (r) {
       if (!r) return;
       anglerRig = r;
-      r.obj.traverse(function (o) {
-        if (o.isMesh && (o.name === 'Wolf3D_Facewear' || o.name === 'Wolf3D_Headwear')) o.visible = false;
-      });
       registerTalker(anglerRig, 'angler');
       var ax = 3.7, az = 6.4;
       r.obj.position.set(ax, W.terrainHeight(ax, az) + 0.04, az);
       r.obj.rotation.y = M.atan2(7.5 - ax, 2 - az) + MODEL_FWD;
+      var bob = null;
+      r.obj.traverse(function (o) { if (o.name === 'Bobber' && !bob) bob = o; });
+      if (bob) { bob.userData.y0 = bob.position.y; r.bobber = bob; }
       scene.add(r.obj);
-      var hat = new THREE.Mesh(new THREE.ConeGeometry(0.34, 0.16, 10), new THREE.MeshStandardMaterial({ color: 0xc9a86a, roughness: 1 }));
-      var brim = new THREE.Mesh(new THREE.CylinderGeometry(0.44, 0.46, 0.03, 12), new THREE.MeshStandardMaterial({ color: 0xd4b478, roughness: 1 }));
-      var hgrp = new THREE.Group(); hgrp.add(hat, brim);
-      r.obj.add(hgrp);
-      var hh = null;
-      r.obj.traverse(function (o) { if (o.isBone && o.name === 'Head' && !hh) hh = o; });
-      if (hh) { hgrp.position.y = 0.14; hh.add(hgrp); }
-      var rod = new THREE.Mesh(new THREE.CylinderGeometry(0.015, 0.03, 2.3, 6), new THREE.MeshStandardMaterial({ color: 0x6a4a2a, roughness: 1 }));
-      rod.rotation.z = 0.62;
-      rod.position.set(0.05, 1.15, 0.25);
-      r.obj.add(rod);
-      var lineG = new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(0.95, 2.0, 0.25), new THREE.Vector3(2.15, 0.35, 1.0)]);
-      var line = new THREE.Line(lineG, new THREE.LineBasicMaterial({ color: 0xdddddd }));
-      r.obj.add(line);
-      var bobber = new THREE.Mesh(new THREE.SphereGeometry(0.06, 8, 6), new THREE.MeshStandardMaterial({ color: 0xd23c3c }));
-      bobber.position.set(2.15, 0.18, 1.0);
-      r.obj.add(bobber);
-      r.bobber = bobber;
     });
     attachAnimal(ASSETS.fox, 0.0065, 'Walk', 1.0, function (r) { foxRig = r; });
     attachAnimal(ASSETS.horse, 0.005, 'horse', 0.85, function (r) { horseRig = r; });
@@ -587,6 +571,33 @@
       scene.add(wolf);
       WILD.wolf = { obj: wolf, mixer: mixer, t: -22, dir: 1 };
     } catch (e) { GAME.errors.push('wolf: ' + e.message); }
+    /* the fall road: a misty autumn lane along the east side */
+    loadGltf('fallroad', function (obj) {
+      if (!obj) return;
+      obj.traverse(prepMesh);
+      var ys = [];
+      for (var z = 36; z >= -32; z -= 4) ys.push(W.terrainHeight(17, z));
+      var yMin = M.min.apply(null, ys), yMax = M.max.apply(null, ys);
+      obj.position.set(17, (yMin + yMax) / 2 + 0.05, 2.5);
+      scene.add(obj);
+    });
+    loadGltf('birch', function (obj) {
+      if (!obj) return;
+      var spots = [
+        [13.4, 26, 1.05], [21.6, 20, 0.95], [13.4, 9, 1.1], [21.5, 12, 1.0],
+        [13.4, -9, 0.92], [21.7, -5, 1.08], [13.5, -26, 1.0], [21.6, -19, 0.96]
+      ];
+      var seed = 13;
+      function rnd() { seed = (seed * 16807) % 2147483647; return (seed % 1000) / 1000; }
+      spots.forEach(function (s) {
+        var t = obj.clone();
+        t.traverse(prepMesh);
+        t.position.set(s[0], W.terrainHeight(s[0], s[1]) - 0.05, s[1]);
+        t.scale.setScalar(s[2] * (0.9 + rnd() * 0.25));
+        t.rotation.y = rnd() * PI * 2;
+        scene.add(t);
+      });
+    });
   }
   function tickWildlife(dt, tSec) {
     if (WILD.peacock) {
@@ -1186,7 +1197,7 @@
     }
     if (anglerRig) {
       anglerRig.mixer.update(dt);
-      if (anglerRig.bobber) anglerRig.bobber.position.y = 0.18 + M.sin(tSec * 1.8) * 0.045;
+      if (anglerRig.bobber) anglerRig.bobber.position.y = anglerRig.bobber.userData.y0 + M.sin(tSec * 1.8) * 0.045;
     }
     if (foxRig) {
       var fa = tSec * 0.35;

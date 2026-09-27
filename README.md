@@ -25,8 +25,10 @@ index.html directly from disk also works if you keep the folder structure.
 
 ## Credits
 
-Built by Chandra Sekhar Reddy with Three.js. Character and animal models from
-Ready Player Me and the glTF sample libraries, animations retargeted from the
-Three.js Soldier mocap set. The Iron Man armor, wolf (with its walk cycle),
-peacock, toucan, bird, spider monkey and anemone flower models are personal
-asset packs added to the world.
+Built by Chandra Sekhar Reddy with Three.js. The walker, friend and angler
+characters are custom-built for this portfolio (the walker wears the owner's
+real face), animated with clips retargeted from the Three.js Soldier mocap
+set. The fox, horse and flamingos come from the glTF sample libraries. The
+Iron Man armor, wolf (with its walk cycle), peacock, toucan, bird, spider
+monkey and anemone flower models are personal asset packs, and the fall road
+with its autumn birches was extracted from a personal Blender scene.
