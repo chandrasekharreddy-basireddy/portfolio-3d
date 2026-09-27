@@ -30,10 +30,17 @@
     clipsWalk: 'models/clips-walk.json',
     clipsRun: 'models/clips-run.json',
     photo: 'assets/profile.jpg',
-    face: 'assets/face.b64'
+    face: 'assets/face.b64',
+    wolf: 'models/wolf.fbx',
+    ironman: 'models/ironman.glb',
+    peacock: 'models/peacock.glb',
+    toucan: 'models/toucan.glb',
+    bird: 'models/bird.glb',
+    monkey: 'models/monkey.glb',
+    flower: 'models/flower.glb'
   };
-  var ASSETS = { avatar: null, female: null, maleb: null, fox: null, horse: null, flamingo: null, clips: null, photo: null, face: null };
-  var LOAD_TOTAL = 11, loadedCount = 0;
+  var ASSETS = { avatar: null, female: null, maleb: null, fox: null, horse: null, flamingo: null, clips: null, photo: null, face: null, wolf: null, ironman: null, peacock: null, toucan: null, bird: null, monkey: null, flower: null };
+  var LOAD_TOTAL = 18, loadedCount = 0;
   var loaders = [
     ['avatar', ASSET_URLS.avatar, 'loading the walker'],
     ['fox', ASSET_URLS.fox, 'waking the fox'],
@@ -45,7 +52,14 @@
     ['clipsWalk', ASSET_URLS.clipsWalk, 'rehearsing movements'],
     ['clipsRun', ASSET_URLS.clipsRun, 'rehearsing movements'],
     ['photo', ASSET_URLS.photo, 'framing the photo'],
-    ['face', ASSET_URLS.face, 'putting on a face']
+    ['face', ASSET_URLS.face, 'putting on a face'],
+    ['wolf', ASSET_URLS.wolf, 'waking the wolf'],
+    ['ironman', ASSET_URLS.ironman, 'raising the armor'],
+    ['peacock', ASSET_URLS.peacock, 'calling the peacock'],
+    ['toucan', ASSET_URLS.toucan, 'inviting the toucan'],
+    ['bird', ASSET_URLS.bird, 'releasing the birds'],
+    ['monkey', ASSET_URLS.monkey, 'finding the monkey'],
+    ['flower', ASSET_URLS.flower, 'planting the flowers']
   ];
   function loadAll(done) {
     loaders.forEach(function (item) {
@@ -440,6 +454,176 @@
     attachAnimal(ASSETS.flamingo, 0.0038, 'flamingo_flyA_', 1.3, function (r) {
       if (r) flamingos.push({ rig: r, r: 5.2, h: 6.9, phase: 2.4, speed: 0.38 });
     });
+    buildWildlife();
+  }
+
+  /* ---------- wildlife park (new models) ---------- */
+  var WILD = { birds: [], flowers: [], wolf: null, peacock: null, monkey: null, toucan: null, statueRing: null };
+  function loadGltf(key, cb) {
+    try {
+      gltfLoader.parse(ASSETS[key], '', function (g) { cb(g.scene); },
+        function (e) { GAME.errors.push('glb ' + key + ': ' + e); cb(null); });
+    } catch (e) { GAME.errors.push('glb ' + key + ': ' + e.message); cb(null); }
+  }
+  function prepMesh(o) { if (o.isMesh) { o.castShadow = W.HQ(); o.frustumCulled = false; } }
+  function buildWildlife() {
+    /* Iron Man armor statue at the projects station */
+    loadGltf('ironman', function (obj) {
+      if (!obj) return;
+      var bx = -8.8, bz = -3.6, gy = W.terrainHeight(bx, bz);
+      var plinth = new THREE.Mesh(new THREE.BoxGeometry(1.7, 0.5, 1.3),
+        new THREE.MeshStandardMaterial({ color: 0x39424e, roughness: 0.95 }));
+      plinth.position.set(bx, gy + 0.25, bz);
+      plinth.castShadow = W.HQ();
+      scene.add(plinth);
+      obj.traverse(prepMesh);
+      obj.position.set(bx, gy + 0.5, bz);
+      obj.rotation.y = PI * 0.5;
+      scene.add(obj);
+      var glow = new THREE.PointLight(0xffc27a, 0.85, 8);
+      glow.position.set(bx + 1.5, gy + 2.1, bz + 0.9);
+      scene.add(glow);
+      var ring = new THREE.Mesh(new THREE.TorusGeometry(0.75, 0.035, 8, 40),
+        new THREE.MeshBasicMaterial({ color: 0x69d2ff }));
+      ring.rotation.x = PI / 2;
+      ring.position.set(bx, gy + 0.06, bz);
+      scene.add(ring);
+      WILD.statueRing = ring;
+    });
+    /* peacock strutting by the pond */
+    loadGltf('peacock', function (obj) {
+      if (!obj) return;
+      obj.traverse(prepMesh);
+      obj.scale.setScalar(1.05);
+      scene.add(obj);
+      WILD.peacock = { obj: obj, a: 0 };
+    });
+    /* toucan perched on a post near the pond */
+    var tx = 13.9, tz = 6.2, ty = W.terrainHeight(tx, tz);
+    var post = new THREE.Mesh(new THREE.CylinderGeometry(0.07, 0.09, 1.5, 8),
+      new THREE.MeshStandardMaterial({ color: 0x5c4128, roughness: 1 }));
+    post.position.set(tx, ty + 0.75, tz);
+    post.castShadow = W.HQ();
+    scene.add(post);
+    loadGltf('toucan', function (obj) {
+      if (!obj) return;
+      obj.traverse(prepMesh);
+      obj.scale.setScalar(1.5);
+      obj.position.set(tx, ty + 1.46, tz);
+      obj.rotation.y = -PI / 2 - 0.3;
+      scene.add(obj);
+      WILD.toucan = obj;
+    });
+    /* monkey on a rock by the trail */
+    var mx = 3.9, mz = 12.6, my = W.terrainHeight(mx, mz);
+    var rock = new THREE.Mesh(new THREE.DodecahedronGeometry(0.55, 0),
+      new THREE.MeshStandardMaterial({ color: 0x707a83, roughness: 1 }));
+    rock.position.set(mx, my + 0.3, mz);
+    rock.castShadow = W.HQ();
+    scene.add(rock);
+    loadGltf('monkey', function (obj) {
+      if (!obj) return;
+      obj.traverse(prepMesh);
+      obj.scale.setScalar(0.95);
+      obj.position.set(mx, my + 0.6, mz);
+      obj.rotation.y = -PI * 0.35;
+      scene.add(obj);
+      WILD.monkey = obj;
+    });
+    /* birds flying wide circles above the valley */
+    loadGltf('bird', function (obj) {
+      if (!obj) return;
+      var cfgs = [
+        { r: 27, h: 10.5, sp: 0.16, ph: 0, s: 1.6 },
+        { r: 34, h: 13.5, sp: 0.12, ph: 2.3, s: 2.1 },
+        { r: 21, h: 8.2, sp: 0.2, ph: 4.1, s: 1.3 }
+      ];
+      cfgs.forEach(function (c) {
+        var b = obj.clone();
+        b.traverse(prepMesh);
+        b.scale.setScalar(c.s);
+        scene.add(b);
+        WILD.birds.push({ obj: b, r: c.r, h: c.h, sp: c.sp, ph: c.ph });
+      });
+    });
+    /* anemone flowers along the trail */
+    loadGltf('flower', function (obj) {
+      if (!obj) return;
+      var n = W.HQ() ? 16 : 9, seed = 7;
+      function rnd() { seed = (seed * 16807) % 2147483647; return (seed % 1000) / 1000; }
+      for (var i = 0; i < n; i++) {
+        var f = obj.clone();
+        f.traverse(prepMesh);
+        var side = i % 2 === 0 ? 1 : -1;
+        var fx = side * (2.7 + rnd() * 1.1);
+        var fz = 30 - rnd() * 56;
+        f.position.set(fx, W.terrainHeight(fx, fz) - 0.02, fz);
+        f.scale.setScalar(0.8 + rnd() * 0.6);
+        f.rotation.y = rnd() * PI * 2;
+        scene.add(f);
+        WILD.flowers.push({ obj: f, ph: rnd() * PI * 2 });
+      }
+    });
+    /* wolf patrolling the far side with its real walk cycle */
+    try {
+      var wolfMgr = new THREE.LoadingManager();
+      wolfMgr.setURLModifier(function (u) {
+        var m = /([^\/\\]+)\.(jpg|jpeg|png)$/i.exec(u);
+        if (m) return 'models/wolftex/' + m[1] + '.' + m[2];
+        return u;
+      });
+      var fbxLoader = new THREE.FBXLoader(wolfMgr);
+      var wolf = fbxLoader.parse(ASSETS.wolf, 'models/');
+      wolf.scale.setScalar(1.7);
+      wolf.traverse(prepMesh);
+      var walk = null;
+      (wolf.animations || []).forEach(function (a) { if (!walk && a.name.indexOf('Walk') >= 0) walk = a; });
+      var mixer = new THREE.AnimationMixer(wolf);
+      if (walk) {
+        var act = mixer.clipAction(walk);
+        act.play();
+        act.setEffectiveTimeScale(1.05);
+      }
+      scene.add(wolf);
+      WILD.wolf = { obj: wolf, mixer: mixer, t: -22, dir: 1 };
+    } catch (e) { GAME.errors.push('wolf: ' + e.message); }
+  }
+  function tickWildlife(dt, tSec) {
+    if (WILD.peacock) {
+      var P = WILD.peacock;
+      P.a += dt * 0.16;
+      var px = 11.2 + M.cos(P.a) * 2.6, pz = 8.5 + M.sin(P.a) * 1.9;
+      P.obj.position.set(px, W.terrainHeight(px, pz) + M.abs(M.sin(tSec * 3.1)) * 0.03, pz);
+      P.obj.rotation.y = -P.a;
+    }
+    var midz = W.TRAIL_Z0 - W.TRAIL_LEN / 2;
+    for (var b = 0; b < WILD.birds.length; b++) {
+      var B = WILD.birds[b];
+      var a = tSec * B.sp + B.ph;
+      B.obj.position.set(M.cos(a) * B.r, B.h + M.sin(tSec * 0.9 + B.ph) * 0.8, midz + M.sin(a) * B.r * 0.85);
+      B.obj.rotation.y = -a - PI / 2;
+      B.obj.rotation.z = 0.18;
+    }
+    for (var fl = 0; fl < WILD.flowers.length; fl++) {
+      var F = WILD.flowers[fl];
+      F.obj.rotation.z = M.sin(tSec * 1.3 + F.ph) * 0.045;
+    }
+    if (WILD.monkey) {
+      WILD.monkey.rotation.z = M.sin(tSec * 1.15) * 0.035;
+      WILD.monkey.rotation.y = -PI * 0.35 + M.sin(tSec * 0.32) * 0.35;
+    }
+    if (WILD.toucan) WILD.toucan.rotation.x = M.sin(tSec * 2.2) * 0.06;
+    if (WILD.wolf) {
+      var Wf = WILD.wolf;
+      Wf.mixer.update(dt);
+      Wf.t += Wf.dir * dt * 1.55;
+      if (Wf.t > 14) { Wf.dir = -1; }
+      if (Wf.t < -26) { Wf.dir = 1; }
+      var wx = -10.6, wz = Wf.t;
+      Wf.obj.position.set(wx, W.terrainHeight(wx, wz), wz);
+      Wf.obj.rotation.y = Wf.dir > 0 ? 0 : PI;
+    }
+    if (WILD.statueRing) WILD.statueRing.rotation.z += dt * 0.6;
   }
 
   /* ---------- UI ---------- */
@@ -1050,6 +1234,7 @@
       lamps[li].bulb.visible = nf > 0.08;
     }
     tickBubbles(dt);
+    tickWildlife(dt, tSec);
     if (horseRig) {
       var ha = tSec * 0.3;
       var hx = 5.5 + M.cos(ha) * 3.5, hz = 19 + M.sin(ha) * 2.6;
