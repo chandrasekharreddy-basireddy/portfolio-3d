@@ -31,6 +31,23 @@ body { overscroll-behavior-y: none; }
 .crest-dot { position: absolute; left: 50%; top: 50%; width: 8px; height: 8px; margin: -4px; background: var(--amber); }
 @keyframes spin { to { transform: rotate(360deg); } }
 
+/* ---------- webgl fallback ---------- */
+#fallback { position: fixed; inset: 0; z-index: 80; background: #0d1620; color: #eaf2f8; display: none; flex-direction: column; align-items: center; justify-content: center; text-align: center; padding: 20px; }
+#fallback.on { display: flex; }
+#fallback h1 { font-family: var(--hud); font-size: clamp(18px, 4vw, 30px); letter-spacing: 6px; font-weight: normal; text-transform: uppercase; }
+#fallback p { color: #7f97a8; margin: 16px 0 28px; font-family: var(--hud); letter-spacing: 1px; }
+#fallback a { font-family: var(--hud); font-size: 13px; letter-spacing: 4px; text-transform: uppercase; color: var(--ink); background: var(--amber); padding: 14px 34px; border-radius: 2px; text-decoration: none; }
+
+/* ---------- pause menu modes ---------- */
+.menu-modes { display: flex; gap: 9px; margin-top: 22px; flex-wrap: wrap; justify-content: center; }
+.menu-modes button { font-family: var(--hud); font-size: 10.5px; letter-spacing: 2px; text-transform: uppercase; color: #cfe0ec; background: rgba(13,22,32,.6); border: 1px solid rgba(255,255,255,.2); border-radius: 2px; padding: 9px 15px; cursor: pointer; transition: all .2s; }
+.menu-modes button:hover { border-color: var(--amber); color: #fff; }
+.jump-label { font-family: var(--hud); font-size: 10px; letter-spacing: 3px; color: #8fa8ba; text-transform: uppercase; margin-top: 26px; }
+.jump-label .dim { color: #46586a; }
+.menu-jump { display: flex; gap: 6px; margin-top: 10px; flex-wrap: wrap; justify-content: center; }
+.jmp { font-family: var(--hud); font-size: 10.5px; letter-spacing: 1.5px; text-transform: uppercase; color: #ffd98a; background: rgba(13,22,32,.6); border: 1px solid rgba(232,176,75,.35); border-radius: 2px; padding: 8px 13px; cursor: pointer; transition: all .2s; }
+.jmp:hover { background: var(--amber); color: var(--ink); }
+
 /* ---------- menu ---------- */
 #menu { position: fixed; inset: 0; z-index: 50; display: flex; flex-direction: column; align-items: center; justify-content: center; background: radial-gradient(ellipse at center, rgba(13,22,32,0.5), rgba(13,22,32,0.9)); color: #eaf2f8; opacity: 0; pointer-events: none; transition: opacity .8s; }
 #menu.on { opacity: 1; pointer-events: auto; }

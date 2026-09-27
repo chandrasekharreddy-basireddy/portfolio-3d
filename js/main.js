@@ -10,6 +10,19 @@
   var GAME = window.__GAME = { state: 'loading', p: 0, discovered: [], season: 'summer', frames: 0, errors: [], animWeights: null, modelLoaded: false, startTime: 0 };
 
   /* ---------- boot ---------- */
+  (function () {
+    try {
+      var tc = document.createElement('canvas');
+      var gl = tc.getContext('webgl') || tc.getContext('experimental-webgl');
+      if (!gl) throw new Error('no webgl');
+    } catch (e) {
+      var fb = document.getElementById('fallback');
+      if (fb) fb.classList.add('on');
+      var ld = document.getElementById('loader');
+      if (ld) ld.style.display = 'none';
+      throw e;
+    }
+  })();
   var canvas = document.getElementById('world-canvas');
   var refs = W.init(canvas);
   var scene = refs.scene, camera = refs.camera, renderer = refs.renderer;
@@ -932,7 +945,15 @@
     }
   }
   window.addEventListener('keydown', function (ev) {
-    if (ev.key === 'Escape') { ev.preventDefault(); togglePause(); }
+    if (ev.key === 'Escape') {
+      ev.preventDefault();
+      if (GAME.state === 'paused') { togglePause(); return; }
+      if (tour.on || photo.on || cinema.on) { exitModes(); return; }
+      togglePause();
+    }
+    var k2 = ev.key.toLowerCase();
+    if (k2 === 'p' && GAME.state === 'playing') { if (photo.on) exitModes(); else enterPhoto(); }
+    if (k2 === 'c' && GAME.state === 'playing') { if (cinema.on) exitModes(); else enterCinema(); }
   });
 
   /* ---------- final cinematic ending ---------- */
@@ -1111,6 +1132,90 @@
       }
     }
   }
+
+  /* ---------- game modes: guided tour, photo, cinematic ---------- */
+  var HUD_ELS = null;
+  function setHudVisible(on) {
+    if (!HUD_ELS) {
+      HUD_ELS = [hudChip, seasonsBar, soundBtn, timeBtn, walkBtn,
+        document.getElementById('btn-share'), navrail, viewbtns, questEl, mmCanvas, promptBtn];
+    }
+    HUD_ELS.forEach(function (el) { if (el && el.style.display !== (on ? '' : 'none')) el.style.display = on ? '' : 'none'; });
+  }
+  var tour = { on: false, i: 0, hold: 0 };
+  var photo = { on: false, yaw: 0.6, pitch: 0.32, dist: 5.2, drag: false, lx: 0, ly: 0 };
+  var cinema = { on: false, yaw: 0.5 };
+  function letterbox(on) {
+    document.getElementById('lbx-t').style.height = on ? '11vh' : '0';
+    document.getElementById('lbx-b').style.height = on ? '11vh' : '0';
+  }
+  function enterTour() {
+    exitModes();
+    tour.on = true;
+    tour.i = 0; tour.hold = 0;
+    walkMode = false;
+    setHudVisible(false);
+    letterbox(true);
+    menuEl.classList.remove('on');
+    hint.style.display = 'block';
+    hint.textContent = '[ GUIDED TOUR — PRESS ESC TO LEAVE ]';
+    toastMsg('Guided tour — sit back and enjoy');
+  }
+  function enterPhoto() {
+    exitModes();
+    photo.on = true;
+    photo.yaw = player.yaw + PI; photo.pitch = 0.3; photo.dist = 5.2;
+    setHudVisible(false);
+    menuEl.classList.remove('on');
+    hint.style.display = 'block';
+    hint.textContent = '[ PHOTO MODE — DRAG TO FRAME · SCROLL TO ZOOM · P TO EXIT ]';
+  }
+  function enterCinema() {
+    exitModes();
+    cinema.on = true;
+    cinema.yaw = player.yaw + PI;
+    setHudVisible(false);
+    letterbox(true);
+    menuEl.classList.remove('on');
+    hint.style.display = 'block';
+    hint.textContent = '[ CINEMATIC — PRESS C TO EXIT ]';
+  }
+  function exitModes() {
+    tour.on = false; photo.on = false; cinema.on = false;
+    setHudVisible(true);
+    letterbox(false);
+    showHud();
+    hint.style.display = 'none';
+  }
+  document.getElementById('btn-tour').onclick = function () { enterTour(); };
+  document.getElementById('btn-photo').onclick = function () { enterPhoto(); };
+  document.getElementById('btn-cinema').onclick = function () { enterCinema(); };
+  /* recruiter fast path: quick jump buttons in the pause menu */
+  (function () {
+    var jumplist = document.getElementById('menu-jump');
+    STATIONS.forEach(function (st, i) {
+      var b = document.createElement('button');
+      b.className = 'jmp';
+      b.textContent = st.label;
+      b.onclick = function () { togglePause(); gotoStation(i); };
+      jumplist.appendChild(b);
+    });
+  })();
+  /* photo controls: drag to frame, wheel to zoom */
+  canvas.addEventListener('pointerdown', function (ev) {
+    if (!photo.on) return;
+    photo.drag = true; photo.lx = ev.clientX; photo.ly = ev.clientY;
+  });
+  window.addEventListener('pointermove', function (ev) {
+    if (!photo.on || !photo.drag) return;
+    photo.yaw -= (ev.clientX - photo.lx) * 0.008;
+    photo.pitch = clamp(photo.pitch + (ev.clientY - photo.ly) * 0.005, -0.1, 1.2);
+    photo.lx = ev.clientX; photo.ly = ev.clientY;
+  });
+  window.addEventListener('pointerup', function () { photo.drag = false; });
+  window.addEventListener('wheel', function (ev) {
+    if (photo.on) photo.dist = clamp(photo.dist + (ev.deltaY > 0 ? 0.5 : -0.5), 1.8, 14);
+  }, { passive: true });
 
   /* ---------- quest / objective system ---------- */
   var questEl = document.getElementById('quest');
@@ -1411,6 +1516,19 @@
       smoothP = clamp((W.TRAIL_Z0 - player.pos.z) / W.TRAIL_LEN, 0, 1);
       GAME.p = smoothP;
     } else {
+      if (tour.on) {
+        var tst = STATIONS[M.min(tour.i, STATIONS.length - 1)];
+        var dtp = tst.p - smoothP;
+        targetP = smoothP + clamp(dtp, -dt * 0.085, dt * 0.085);
+        if (M.abs(dtp) < 0.004) {
+          tour.hold += dt;
+          if (tour.hold > 5.5) {
+            tour.hold = 0;
+            tour.i++;
+            if (tour.i >= STATIONS.length) { exitModes(); toastMsg('Tour complete'); }
+          }
+        }
+      }
       smoothV += ((targetP - smoothP) * om * om - 2 * om * smoothV) * dt;
       smoothP += smoothV * dt;
       smoothP = clamp(smoothP, -0.02, 1.02);
@@ -1652,6 +1770,22 @@
       camLook.lerp(tmpV2.set(player.pos.x, player.pos.y + 1.25, player.pos.z - 2), 1 - M.exp(-dt * 5));
     }
     camera.lookAt(camLook);
+
+    if (photo.on) {
+      var pcx = player.pos.x + M.sin(photo.yaw) * M.cos(photo.pitch) * photo.dist;
+      var pcz = player.pos.z + M.cos(photo.yaw) * M.cos(photo.pitch) * photo.dist;
+      var pcy = player.pos.y + M.sin(photo.pitch) * photo.dist + 0.6;
+      camera.position.set(pcx, M.max(pcy, W.terrainHeight(pcx, pcz) + 0.3), pcz);
+      camera.lookAt(player.pos.x, player.pos.y + 1.2, player.pos.z);
+    } else if (cinema.on) {
+      cinema.yaw += dt * 0.10;
+      var ccx = player.pos.x + M.sin(cinema.yaw) * 6.2;
+      var ccz = player.pos.z + M.cos(cinema.yaw) * 6.2;
+      camera.position.set(ccx, player.pos.y + 2.6, ccz);
+      camera.lookAt(player.pos.x, player.pos.y + 1.3, player.pos.z);
+      camPos.copy(camera.position);
+      camLook.set(player.pos.x, player.pos.y + 1.3, player.pos.z);
+    }
 
     var sunLight = W.sun;
     sunLight.position.set(player.pos.x + 18, 30, player.pos.z + 10);

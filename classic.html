@@ -1,0 +1,91 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="description" content="Chandra Sekhar Reddy - B.Tech Computer Science student at Sai University. Classic portfolio (3D world unavailable).">
+<title>Chandra Sekhar Reddy — Portfolio</title>
+<link rel="icon" href="assets/favicon.png" type="image/png">
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+:root { --amber: #e8b04b; --ink: #0d1620; }
+body { background: #0d1620; color: #e7f0f7; font-family: Georgia, 'Times New Roman', serif; line-height: 1.7; }
+.wrap { max-width: 760px; margin: 0 auto; padding: 60px 24px 90px; }
+header { border-bottom: 1px solid rgba(255,255,255,.14); padding-bottom: 28px; margin-bottom: 40px; }
+h1 { font-weight: normal; letter-spacing: 6px; text-transform: uppercase; font-size: clamp(22px, 4.6vw, 34px); }
+.tagline { color: var(--amber); font-family: 'Trebuchet MS', sans-serif; font-size: 13px; letter-spacing: 4px; text-transform: uppercase; margin-top: 10px; }
+.note { color: #7f97a8; font-family: 'Trebuchet MS', sans-serif; font-size: 12px; letter-spacing: 1px; margin-top: 18px; }
+.note a { color: #8fd0ff; }
+h2 { font-weight: normal; letter-spacing: 4px; text-transform: uppercase; font-size: 15px; color: var(--amber); font-family: 'Trebuchet MS', sans-serif; margin: 44px 0 16px; border-left: 3px solid var(--amber); padding-left: 12px; }
+p { color: #c2d4e0; font-size: 15px; margin-bottom: 12px; }
+.row { display: flex; gap: 12px; align-items: baseline; margin: 8px 0; }
+.k { color: var(--amber); font-family: 'Trebuchet MS', sans-serif; font-size: 11px; letter-spacing: 2px; text-transform: uppercase; min-width: 110px; }
+.v { color: #dcebf5; font-size: 14.5px; }
+.v a { color: #8fd0ff; text-decoration: none; }
+.chips { display: flex; flex-wrap: wrap; gap: 8px; margin: 12px 0; }
+.chip { font-family: 'Trebuchet MS', sans-serif; font-size: 11px; letter-spacing: 1.5px; text-transform: uppercase; border: 1px solid #3d5a70; color: #cfe4f2; padding: 6px 12px; }
+.proj { border-left: 2px solid var(--amber); padding-left: 14px; margin: 16px 0; }
+.proj b { font-weight: normal; color: #fff; font-family: 'Trebuchet MS', sans-serif; font-size: 13px; letter-spacing: 1.5px; text-transform: uppercase; }
+.proj .small { font-size: 13px; color: #86a0b2; margin-top: 5px; }
+.proj a { color: #8fd0ff; text-decoration: none; }
+.btns { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 26px; }
+.btns a, .btns button { font-family: 'Trebuchet MS', sans-serif; font-size: 12px; letter-spacing: 2.5px; text-transform: uppercase; color: #eaf2f8; background: linear-gradient(180deg, rgba(16,27,39,.9), rgba(11,19,28,.9)); border: 1px solid rgba(255,255,255,.22); border-radius: 2px; padding: 12px 20px; cursor: pointer; text-decoration: none; }
+.btns a:hover, .btns button:hover { border-color: var(--amber); }
+footer { margin-top: 60px; color: #46586a; font-family: 'Trebuchet MS', sans-serif; font-size: 11px; letter-spacing: 1px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>Chandra Sekhar Reddy</h1>
+    <div class="tagline">Computer Science &middot; Builder &middot; Explorer</div>
+    <p class="note">This is the classic version of the portfolio. The full experience is a walkable 3D world — <a href="index.html">open it here</a> if your device supports WebGL.</p>
+  </header>
+
+  <h2>About Me</h2>
+  <p>I'm a second-year B.Tech Computer Science student at Sai University. Most of my study time goes into C, Python, and data structures and algorithms.</p>
+  <p>Outside of that, I like making web pages with HTML and CSS, and working with data in Power BI. I've also started learning n8n recently, because I like the idea of connecting tools and letting small repetitive tasks run on their own.</p>
+  <p>I'm still early in my journey. For now my goal is simple: learn things properly and build as much as I can.</p>
+
+  <h2>Skills</h2>
+  <div class="chips">
+    <span class="chip">Python</span><span class="chip">C</span><span class="chip">DSA</span>
+    <span class="chip">JavaScript</span><span class="chip">HTML</span><span class="chip">CSS</span>
+    <span class="chip">FastAPI</span><span class="chip">PostgreSQL</span><span class="chip">Redis</span>
+    <span class="chip">Next.js</span><span class="chip">TypeScript</span><span class="chip">Power BI</span><span class="chip">n8n</span>
+  </div>
+
+  <h2>Projects</h2>
+  <div class="proj"><b>P01 &middot; Survival School</b>
+    <div class="small">MCQ-driven learning platform for universities — timed exams with server-authoritative scoring, points and badges, QR-verifiable certificates, an AI study assistant, timetables and real-time chat. FastAPI, PostgreSQL, Redis, Next.js.<br>
+    <a href="https://survivalschool.vercel.app" target="_blank" rel="noopener">Live site</a> &middot; <a href="https://github.com/chandrasekharreddy-basireddy/survivalschool" target="_blank" rel="noopener">GitHub</a></div></div>
+  <div class="proj"><b>P02 &middot; Signal-Lite</b>
+    <div class="small">A security-first real-time messaging platform: phone/OTP login, rotating refresh tokens, server-side authorization on every resource, WebSocket fan-out over Redis and private object storage. FastAPI, PostgreSQL, Next.js.<br>
+    <a href="https://github.com/chandrasekharreddy-basireddy/Runnerup--chat" target="_blank" rel="noopener">GitHub</a></div></div>
+  <div class="proj"><b>P03 &middot; SaiU V2 — Student OS</b>
+    <div class="small">An offline-first university companion PWA: live timetable from Google Sheets, conflict and free-time engines, .ics calendar export, planner, XP and badges — with automated tests and CI. Vanilla JS, service worker.<br>
+    <a href="https://github.com/chandrasekharreddy-basireddy/SaiU-V2" target="_blank" rel="noopener">GitHub</a></div></div>
+  <div class="proj"><b>P04 &middot; Next Build</b>
+    <div class="small">Spot reserved — whatever I build next goes here.</div></div>
+
+  <h2>Education</h2>
+  <div class="row"><span class="k">Class X</span><span class="v">Bhashyam High School &middot; 560 / 600</span></div>
+  <div class="row"><span class="k">Class XII</span><span class="v">Bhashyam Junior College &middot; 975 / 1000</span></div>
+  <div class="row"><span class="k">B.Tech Y2</span><span class="v">Sai University, Computer Science (pursuing) &middot; CGPA 9.33</span></div>
+
+  <h2>Contact</h2>
+  <div class="row"><span class="k">Email</span><span class="v"><a href="mailto:srinivasabasireddy06@gmail.com">srinivasabasireddy06@gmail.com</a></span></div>
+  <div class="row"><span class="k">GitHub</span><span class="v"><a href="https://github.com/chandrasekharreddy-basireddy" target="_blank" rel="noopener">github.com/chandrasekharreddy-basireddy</a></span></div>
+  <div class="row"><span class="k">LinkedIn</span><span class="v"><a href="https://www.linkedin.com/in/chandra-sekhar-reddy-basireddy" target="_blank" rel="noopener">chandra-sekhar-reddy-basireddy</a></span></div>
+
+  <div class="btns">
+    <a href="https://github.com/chandrasekharreddy-basireddy" target="_blank" rel="noopener">GITHUB</a>
+    <a href="https://www.linkedin.com/in/chandra-sekhar-reddy-basireddy" target="_blank" rel="noopener">LINKEDIN</a>
+    <a href="mailto:srinivasabasireddy06@gmail.com">EMAIL</a>
+    <a href="index.html">ENTER THE 3D WORLD</a>
+  </div>
+
+  <footer>Made with plain HTML — the 3D version is built with Three.js and runs entirely in your browser.</footer>
+</div>
+</body>
+</html>
