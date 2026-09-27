@@ -1133,6 +1133,79 @@
     }
   }
 
+  /* ---------- footprints (pooled, weather-aware) ---------- */
+  var FP_POOL = [], FP_MAX = 26;
+  (function () {
+    var geo = new THREE.CircleGeometry(0.085, 8);
+    for (var i = 0; i < FP_MAX; i++) {
+      var mat = new THREE.MeshBasicMaterial({ color: 0x2b2318, transparent: true, opacity: 0, depthWrite: false });
+      var fp = new THREE.Mesh(geo, mat);
+      fp.renderOrder = 2;
+      fp.visible = false;
+      scene.add(fp);
+      FP_POOL.push({ mesh: fp, t: 0, life: 0 });
+    }
+  })();
+  var fpFlip = 1;
+  function spawnFootprint(x, z, yaw) {
+    var fx2 = M.sin(yaw), fz2 = M.cos(yaw);
+    fpFlip = -fpFlip;
+    var ox = -fz2 * 0.11 * fpFlip, oz = fx2 * 0.11 * fpFlip;
+    var px3 = x + ox - fx2 * 0.05, pz3 = z + oz - fz2 * 0.05;
+    var slot = null, oldest = 1e9;
+    for (var i = 0; i < FP_POOL.length; i++) {
+      var s4 = FP_POOL[i];
+      if (!s4.mesh.visible) { slot = s4; break; }
+      if (s4.t / s4.life < oldest) { oldest = s4.t / s4.life; slot = s4; }
+    }
+    var se = W.SEASONS[W.season()];
+    slot.life = se && se.snow > 0 ? 22 : (se && se.rain > 0 ? 4 : 9);
+    slot.t = 0;
+    slot.mesh.visible = true;
+    slot.mesh.position.set(px3, W.terrainHeight(px3, pz3) + 0.012, pz3);
+    slot.mesh.quaternion.setFromUnitVectors(new THREE.Vector3(0, 0, 1), terrainNormal(px3, pz3));
+    slot.mesh.rotation.z = yaw;
+    slot.base = se && se.snow > 0 ? 0.5 : 0.34;
+    slot.mesh.material.opacity = slot.base;
+  }
+  function tickFootprints(dt) {
+    for (var i = 0; i < FP_POOL.length; i++) {
+      var s4 = FP_POOL[i];
+      if (!s4.mesh.visible) continue;
+      s4.t += dt;
+      if (s4.t > s4.life) { s4.mesh.visible = false; continue; }
+      s4.mesh.material.opacity = (s4.base || 0.34) * (1 - s4.t / s4.life);
+    }
+  }
+
+  /* ---------- journey & achievements panel ---------- */
+  var journeyEl = document.getElementById('journey');
+  function openJourney() {
+    var stops = STATE.stopCount(), orbs2 = STATE.orbCount(), ach = STATE.data.ach.length;
+    var total = DATA.ACHIEVEMENTS.length;
+    document.getElementById('j-loc').textContent = stops + ' / 6';
+    document.getElementById('j-orbs').textContent = orbs2 + ' / 10';
+    document.getElementById('j-ach').textContent = ach + ' / ' + total;
+    var pct = M.round((stops / 6 * 0.5 + orbs2 / 10 * 0.3 + ach / total * 0.2) * 100);
+    document.getElementById('j-fill').style.width = pct + '%';
+    document.getElementById('j-title').textContent = 'Journey — ' + pct + '%';
+    var list = document.getElementById('j-achlist');
+    list.innerHTML = '';
+    DATA.ACHIEVEMENTS.forEach(function (a) {
+      var got = STATE.isUnlocked(a.id);
+      var row = document.createElement('div');
+      row.className = 'jach' + (got ? ' got' : '');
+      row.innerHTML = '<b>' + (got ? a.name : '?????') + '</b><span>' + (got ? a.desc : 'locked') + '</span>';
+      list.appendChild(row);
+    });
+    journeyEl.classList.add('on');
+    if (GAME.state === 'paused') { menuEl.classList.remove('on'); GAME.state = 'playing'; }
+  }
+  document.getElementById('btn-journey').onclick = openJourney;
+  document.getElementById('btn-jclose').onclick = function () { journeyEl.classList.remove('on'); };
+  hudChip.onclick = openJourney;
+  hudChip.style.cursor = 'pointer';
+
   /* ---------- game modes: guided tour, photo, cinematic ---------- */
   var HUD_ELS = null;
   function setHudVisible(on) {
@@ -1567,6 +1640,7 @@
         if (mvBlend > 0.4 && GAME.state === 'playing') {
           var onWood = M.abs(player.pos.z - W.bridge.z) < W.bridge.half && player.pos.x > W.bridge.x0 && player.pos.x < W.bridge.x1;
           W.AudioSys.stepSnd(0.045 + 0.05 * (runW / tot), onWood);
+          if (!onWood) spawnFootprint(player.pos.x, player.pos.z, player.yaw);
         }
       }
       var nearSt = null;
@@ -1700,6 +1774,7 @@
     }
     tickInteract();
     drawMinimap();
+    tickFootprints(dt);
     try { PLACES.tick(dt, tSec, player, GAME); } catch (e) {}
     for (var hi = hearts.length - 1; hi >= 0; hi--) {
       var hm2 = hearts[hi];
