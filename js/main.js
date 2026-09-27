@@ -1053,8 +1053,17 @@
 
   /* ---------- NPC speech bubbles ---------- */
   var bubblesEl = document.getElementById('bubbles');
+  var FRIEND_BASE = ['Hey! Welcome to my little world.', 'Walk to the end of the trail, it is worth it.', 'The fox is friendly, I promise.'];
+  var FRIEND_STORY = {
+    home: "Let's explore this place together.",
+    about: "This is where Chandra tells his story.",
+    skills: "Careful - skills grow thick around here.",
+    projects: "These are some of Chandra's projects.",
+    education: "The university grounds. He studies here.",
+    contact: "This is where the trail ends. Talk soon!"
+  };
   var NPC_TALK = {
-    friend: ['Hey! Welcome to my little world.', 'Walk to the end of the trail, it is worth it.', 'The fox is friendly, I promise.'],
+    friend: FRIEND_BASE.slice(),
     angler: ['Shh, the fish are resting.', 'I once caught one this big. True story.', 'Monsoon makes the fish hide.'],
     walker: ['Nice weather for a walk today.', 'The lake view is better up ahead.', 'Have you met the horse yet?'],
     walker2: ['Almost at the projects board!', 'Night time here is magical. Try it.', 'Snow is my favorite season here.']
@@ -1078,6 +1087,13 @@
         }
         if (T.t > 4.2) { T.t = 0; T.line = (T.line + 1) % 3; }
         var lines = NPC_TALK[T.key];
+        if (T.key === 'friend') {
+          var story = null;
+          for (var sI = 0; sI < STATIONS.length; sI++) {
+            if (M.abs(player.pos.z - W.trailPos(STATIONS[sI].p).z) < 7) { story = FRIEND_STORY[STATIONS[sI].id]; break; }
+          }
+          lines = story ? [story].concat(FRIEND_BASE) : FRIEND_BASE;
+        }
         if (T.el.textContent !== lines[T.line]) T.el.textContent = lines[T.line];
         T.rig.head.getWorldPosition(tmpV3);
         tmpV3.y += 0.32;
@@ -1468,7 +1484,44 @@
 
     if (friendRig) {
       friendRig.mixer.update(dt);
-      var near = player.pos.distanceTo(friendRig.obj.position) < 12;
+      /* companion: follows the player everywhere */
+      var fwdX = M.sin(player.yaw), fwdZ = M.cos(player.yaw);
+      var tgx, tgz;
+      if (walkMode) {
+        tgx = player.pos.x - fwdX * 1.75 + fwdZ * 0.85;
+        tgz = player.pos.z - fwdZ * 1.75 - fwdX * 0.85;
+      } else {
+        var fp = W.trailPos(clamp(smoothP - 0.032, 0, 1));
+        tgx = fp.x - 1.15; tgz = fp.z;
+      }
+      tgx = clamp(tgx, -12.5, 16.5); tgz = clamp(tgz, -42, 44);
+      // keep the friend out of the lake (unless the player is on the bridge)
+      var fdx = tgx - 7.5, fdz = tgz - 2, fdl = M.sqrt(fdx * fdx + fdz * fdz);
+      var onBridgeF = M.abs(player.pos.z - W.bridge.z) < W.bridge.half && player.pos.x > W.bridge.x0 && player.pos.x < W.bridge.x1;
+      if (fdl < 6.4 && !onBridgeF && fdl > 0.01) { tgx = 7.5 + fdx / fdl * 6.4; tgz = 2 + fdz / fdl * 6.4; }
+      var fpx = friendRig.obj.position;
+      var dx3 = tgx - fpx.x, dz3 = tgz - fpx.z;
+      var dDist = M.sqrt(dx3 * dx3 + dz3 * dz3);
+      var fSpd = 0;
+      if (dDist > 0.4) {
+        fSpd = M.min(dDist > 4.5 ? 3.6 : 2.4, dDist / M.max(dt, 0.001));
+        fpx.x += dx3 / dDist * fSpd * dt;
+        fpx.z += dz3 / dDist * fSpd * dt;
+        friendRig.obj.rotation.y = M.atan2(dx3, dz3) + MODEL_FWD;
+      } else if (dDist < 0.4) {
+        friendRig.obj.rotation.y = angLerp(friendRig.obj.rotation.y, M.atan2(player.pos.x - fpx.x, player.pos.z - fpx.z) + MODEL_FWD, M.min(1, dt * 5));
+      }
+      var onBridgeF2 = M.abs(fpx.z - W.bridge.z) < W.bridge.half && fpx.x > W.bridge.x0 && fpx.x < W.bridge.x1;
+      fpx.y = (onBridgeF2 ? M.max(W.terrainHeight(fpx.x, fpx.z), W.deckY(fpx.x)) : W.terrainHeight(fpx.x, fpx.z)) + 0.04;
+      var fIdle = fSpd < 0.2 ? 1 : 0;
+      var fRun = fSpd > 3.0 ? 1 : 0;
+      var fWalk = fSpd > 0.2 ? 1 : 0;
+      friendRig.actions.idle.setEffectiveWeight(fIdle);
+      friendRig.actions.walk.setEffectiveWeight(fWalk * (1 - fRun));
+      friendRig.actions.run.setEffectiveWeight(fRun);
+      friendRig.phase = (friendRig.phase || 0) + dt * clamp(fSpd, 0, 3.2) * 5.2;
+      armSwing(friendRig, friendRig.phase, 0.45 * clamp(fSpd / 1.2, 0, 1));
+      var near = player.pos.distanceTo(fpx) < 12;
       if (near) {
         tmpV.copy(player.pos);
         var lp = friendRig.obj.worldToLocal(tmpV.clone());
