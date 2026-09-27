@@ -755,31 +755,79 @@
     night:  { night: 1, exp: 0.8, skyTopT: 0x0a1226, skyTopA: 0.94, skyBotT: 0x16233c, skyBotA: 0.85, sunTint: 0x93a9d8, sunMul: 0.09, hemiMul: 0.24, fogT: 0x0c1626, fogA: 0.8, terrMul: 0.3, leafMul: 0.34, waterMul: 0.3, fogNMul: 0.75, sunOpMul: 0 },
     dawn:   { night: 0, exp: 0.98, skyTopT: 0x7f8fb0, skyTopA: 0.4, skyBotT: 0xf0c09a, skyBotA: 0.5, sunTint: 0xffd9a8, sunMul: 0.65, hemiMul: 0.8, fogT: 0xc0b4c8, fogA: 0.3, terrMul: 0.8, leafMul: 0.85, sunOpMul: 0.85 }
   };
-  var curTime = 'noon', nightF = 0;
-  function computeTargets() {
-    var d = SEASONS[curSeason], t = TIMES[curTime];
+  var curTime = 'noon', nightF = 0, targetNight = 0;
+  var autoTime = true, hourNow = 9.4, lastHour = -1;
+  var lastTB = { a: 'noon', b: 'noon', k: 0 };
+  function presetTargets(t) {
+    var d = SEASONS[curSeason];
     function c(baseHex, tintHex, amt, mul) {
       var c0 = new THREE.Color(baseHex);
       if (tintHex !== undefined) c0.lerp(new THREE.Color(tintHex), amt);
       if (mul !== undefined) c0.multiplyScalar(mul);
       return c0;
     }
-    SNt = {
+    return {
       top: c(d.top, t.skyTopT, t.skyTopA), bot: c(d.bot, t.skyBotT, t.skyBotA),
       fog: c(d.fog, t.fogT, t.fogA), hemi: d.hemi * (t.hemiMul || 1), sunI: d.sunI * (t.sunMul || 1),
       terr: c(d.terr, undefined, undefined, t.terrMul), leaf: c(d.leaf, undefined, undefined, t.leafMul),
       path: c(d.path, undefined, undefined, t.terrMul), waterA: c(d.waterA, undefined, undefined, t.waterMul),
       waterB: c(d.waterB, undefined, undefined, t.waterMul), cloud: c(d.cloud, undefined, undefined, t.terrMul || 1),
       fogN: d.fogN * (t.fogNMul || 1), fogF: d.fogF * (t.fogNMul || 1), sunOp: d.sunOp * (t.sunOpMul === undefined ? 1 : t.sunOpMul),
-      sunColor: t.sunTint ? new THREE.Color(t.sunTint) : new THREE.Color(0xfff2dd)
+      sunColor: t.sunTint ? new THREE.Color(t.sunTint) : new THREE.Color(0xfff2dd),
+      night: t.night
     };
+  }
+  function computeTargets(tA, tB, k) {
+    if (k === undefined) { tB = tA; k = 0; }
+    if (tA) lastTB = { a: tA, b: tB, k: k };
+    var A = presetTargets(TIMES[(tA || curTime)]), B = presetTargets(TIMES[(tB || tA || curTime)]);
+    function mixN(a, b) { return a + (b - a) * k; }
+    function mixC(a, b) { return a.clone().lerp(b, k); }
+    SNt = {
+      top: mixC(A.top, B.top), bot: mixC(A.bot, B.bot),
+      fog: mixC(A.fog, B.fog), hemi: mixN(A.hemi, B.hemi), sunI: mixN(A.sunI, B.sunI),
+      terr: mixC(A.terr, B.terr), leaf: mixC(A.leaf, B.leaf),
+      path: mixC(A.path, B.path), waterA: mixC(A.waterA, B.waterA),
+      waterB: mixC(A.waterB, B.waterB), cloud: mixC(A.cloud, B.cloud),
+      fogN: mixN(A.fogN, B.fogN), fogF: mixN(A.fogF, B.fogF), sunOp: mixN(A.sunOp, B.sunOp),
+      sunColor: mixC(A.sunColor, B.sunColor),
+      night: mixN(A.night, B.night)
+    };
+    targetNight = SNt.night;
     SC.t = 0;
   }
-  function applyTime(name) { curTime = name; computeTargets(); }
+  function applyTime(name) {
+    curTime = name;
+    autoTime = false;
+    var H = { night: 0, dawn: 6, noon: 12, sunset: 18 };
+    hourNow = H[name] !== undefined ? H[name] : hourNow;
+    computeTargets(name, name, 0);
+  }
+  function setAutoTime(on) {
+    autoTime = !!on;
+    if (autoTime) lastHour = -1;
+  }
+  /* continuous day/night clock: one full day in ~7 minutes */
+  var HOUR_SEGS = [[0, 'night'], [6, 'dawn'], [12, 'noon'], [18, 'sunset'], [24, 'night']];
+  function advanceClock(dt) {
+    if (!autoTime) return;
+    hourNow = (hourNow + dt / 17.5) % 24;
+    if (M.abs(hourNow - lastHour) < 0.06) return;
+    lastHour = hourNow;
+    for (var i = 0; i < HOUR_SEGS.length - 1; i++) {
+      if (hourNow >= HOUR_SEGS[i][0] && hourNow < HOUR_SEGS[i + 1][0]) {
+        var k = (hourNow - HOUR_SEGS[i][0]) / (HOUR_SEGS[i + 1][0] - HOUR_SEGS[i][0]);
+        var kk = k * k * (3 - 2 * k);
+        computeTargets(HOUR_SEGS[i][1], HOUR_SEGS[i + 1][1], kk);
+        curTime = kk < 0.5 ? HOUR_SEGS[i][1] : HOUR_SEGS[i + 1][1];
+        return;
+      }
+    }
+  }
   function applySeason(name) {
     curSeason = name;
     var d = SEASONS[name];
-    computeTargets();
+    computeTargets(lastTB.a, lastTB.b, lastTB.k);
     flowers.forEach(function (f) { f.visible = d.flowers; });
     butterflies.forEach(function (b) { b.visible = d.butterflies; });
     umbrellaOn = d.umbrella;
@@ -814,7 +862,8 @@
       waterBase.setHex(dS.waterA).multiplyScalar(0.55).lerp(new THREE.Color(0x134252), 0.35);
       water.material.uniforms.waterColor.value.copy(waterBase).multiplyScalar(1 - nightF * 0.7);
     }
-    nightF = lerp(nightF, TIMES[curTime].night, M.min(1, dt / 2.2));
+    advanceClock(dt);
+    nightF = lerp(nightF, targetNight, M.min(1, dt / 2.2));
     renderer.toneMappingExposure = lerp(renderer.toneMappingExposure, TIMES[curTime].exp, M.min(1, dt / 1.5));
     if (stars) { stars.material.opacity = nightF * 0.9; stars.visible = nightF > 0.02; }
     if (moonMesh) { moonMesh.material.opacity = nightF * 0.95; moonMesh.visible = nightF > 0.02; }
@@ -925,6 +974,7 @@
       for (var i = 0; i < len; i++) d[i] = M.random() * 2 - 1;
       return buf;
     }
+    var wfG = null;
     function init() {
       if (started || !enabled) return;
       try {
@@ -950,6 +1000,14 @@
         windG = ctx.createGain(); windG.gain.value = 0.05;
         windSrc.connect(windFilt); windFilt.connect(windG); windG.connect(master);
         windSrc.start();
+        // waterfall layer (spatial: level driven from the game loop)
+        var wfSrc = ctx.createBufferSource();
+        wfSrc.buffer = noiseBuf; wfSrc.loop = true;
+        var wfFilt = ctx.createBiquadFilter();
+        wfFilt.type = 'bandpass'; wfFilt.frequency.value = 480; wfFilt.Q.value = 0.55;
+        wfG = ctx.createGain(); wfG.gain.value = 0;
+        wfSrc.connect(wfFilt); wfFilt.connect(wfG); wfG.connect(master);
+        wfSrc.start();
         // slow wind swell
         var lfo = ctx.createOscillator();
         lfo.frequency.value = 0.09;
@@ -995,6 +1053,41 @@
         } catch (e) {}
       } else if (on) init();
     }
+    function setWaterfall(level) {
+      if (!ctx || !started || !wfG) return;
+      try { wfG.gain.linearRampToValueAtTime(enabled ? level : 0, ctx.currentTime + 0.5); } catch (e) {}
+    }
+    function stepSnd(vol, wood) {
+      if (!ctx || !started || !enabled) return;
+      try {
+        var t = ctx.currentTime;
+        var src = ctx.createBufferSource(); src.buffer = noiseBuf; src.loop = true;
+        var f = ctx.createBiquadFilter();
+        f.type = 'lowpass'; f.frequency.value = wood ? 900 : 420; f.Q.value = 1.1;
+        var g = ctx.createGain();
+        g.gain.setValueAtTime(0.0001, t);
+        g.gain.exponentialRampToValueAtTime(M.max(0.004, vol), t + 0.012);
+        g.gain.exponentialRampToValueAtTime(0.0001, t + 0.11);
+        src.connect(f); f.connect(g); g.connect(master);
+        src.start(t); src.stop(t + 0.13);
+      } catch (e) {}
+    }
+    function chirp() {
+      if (!ctx || !started || !enabled) return;
+      try {
+        var t = ctx.currentTime, base = 1900 + M.random() * 900;
+        var o = ctx.createOscillator(); o.type = 'sine';
+        o.frequency.setValueAtTime(base, t);
+        o.frequency.linearRampToValueAtTime(base * 1.35, t + 0.07);
+        o.frequency.linearRampToValueAtTime(base * 0.8, t + 0.16);
+        var g = ctx.createGain();
+        g.gain.setValueAtTime(0.0001, t);
+        g.gain.exponentialRampToValueAtTime(0.045, t + 0.02);
+        g.gain.exponentialRampToValueAtTime(0.0001, t + 0.2);
+        o.connect(g); g.connect(master);
+        o.start(t); o.stop(t + 0.22);
+      } catch (e) {}
+    }
     function ding(freq) {
       if (!ctx || !started || !enabled) return;
       try {
@@ -1011,7 +1104,8 @@
         o.start(t); o.stop(t + 0.55);
       } catch (e) {}
     }
-    return { init: init, setSeason: setSeason, thunder: thunder, setEnabled: setEnabled, ding: ding, isEnabled: function () { return enabled; } };
+    return { init: init, setSeason: setSeason, thunder: thunder, setEnabled: setEnabled, ding: ding, isEnabled: function () { return enabled; },
+      setWaterfall: setWaterfall, stepSnd: stepSnd, chirp: chirp };
   })();
 
   window.WORLD = {
@@ -1019,7 +1113,8 @@
     hemi: null, sun: null, sunMesh: null,
     terrainHeight: terrainHeight, trailPos: trailPos, TRAIL_LEN: TRAIL_LEN, TRAIL_Z0: TRAIL_Z0,
     SEASONS: SEASONS, applySeason: applySeason, tickSeason: tickSeason,
-    applyTime: applyTime, nightFactor: function () { return nightF; }, timeName: function () { return curTime; },
+    applyTime: applyTime, nightFactor: function () { return nightF; }, timeName: function () { return autoTime ? 'auto' : curTime; },
+    setAutoTime: setAutoTime, hour: function () { return hourNow; },
     umbrella: function () { return umbrella; }, umbrellaOn: function () { return umbrellaOn; },
     onSeason: function (cb) { seasonCallbacks.push(cb); },
     AudioSys: AudioSys,

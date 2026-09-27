@@ -735,11 +735,13 @@
 
   /* time of day */
   var timeBtn = document.getElementById('btn-time');
-  var TIME_SEQ = ['noon', 'sunset', 'night', 'dawn'];
-  var TIME_LBL = { noon: 'NOON', sunset: 'SUNSET', night: 'NIGHT', dawn: 'DAWN' };
+  var TIME_SEQ = ['auto', 'noon', 'sunset', 'night', 'dawn'];
+  var TIME_LBL = { auto: 'TIME: AUTO', noon: 'NOON', sunset: 'SUNSET', night: 'NIGHT', dawn: 'DAWN' };
   timeBtn.onclick = function () {
     var i = TIME_SEQ.indexOf(W.timeName());
-    W.applyTime(TIME_SEQ[(i + 1) % TIME_SEQ.length]);
+    var next = TIME_SEQ[(i + 1) % TIME_SEQ.length];
+    if (next === 'auto') W.setAutoTime(true);
+    else { W.setAutoTime(false); W.applyTime(next); }
     timeBtn.textContent = TIME_LBL[W.timeName()];
   };
 
@@ -980,6 +982,7 @@
   };
 
   function showHud() {
+    timeBtn.textContent = TIME_LBL[W.timeName()] || 'TIME: AUTO';
     questEl.style.display = 'block';
     if (mmCanvas) mmCanvas.style.display = 'block';
     hudChip.style.display = 'block';
@@ -1440,6 +1443,14 @@
       var mvBlend = clamp((walkW + runW) / tot, 0, 1);
       walkPhase += dt * clamp(hSpeed, 0, 3.2) * (5.2 + 2.2 * (runW / tot));
       armSwing(playerRig, walkPhase, 0.5 * mvBlend * clamp(hSpeed / 1.2, 0, 1));
+      var stepIdx = M.floor(walkPhase / PI);
+      if (stepIdx !== (GAME._step || 0)) {
+        GAME._step = stepIdx;
+        if (mvBlend > 0.4 && GAME.state === 'playing') {
+          var onWood = M.abs(player.pos.z - W.bridge.z) < W.bridge.half && player.pos.x > W.bridge.x0 && player.pos.x < W.bridge.x1;
+          W.AudioSys.stepSnd(0.045 + 0.05 * (runW / tot), onWood);
+        }
+      }
       var nearSt = null;
       for (var ns = 0; ns < STATIONS.length; ns++) {
         if (M.abs(smoothP - STATIONS[ns].p) < 0.035) { nearSt = STATIONS[ns]; break; }
@@ -1583,6 +1594,17 @@
     tickOrbs(dt, tSec);
     var nf = W.nightFactor();
     if (nf > 0.5 && STATE.unlock('night-owl')) { toastMsg('ACHIEVEMENT: NIGHT OWL'); dingSound(740); }
+    /* spatial audio: waterfall louder near it, monsoon swells it */
+    GAME._spT = (GAME._spT || 0) + dt;
+    if (GAME._spT > 0.3) {
+      GAME._spT = 0;
+      var wdx = player.pos.x - 12.5, wdz = player.pos.z - 2;
+      var wdist = M.sqrt(wdx * wdx + wdz * wdz);
+      var rainBoost = 1 + ((W.SEASONS[W.season()] || {}).rain || 0) / 470 * 1.5;
+      W.AudioSys.setWaterfall(clamp(1 - wdist / 30, 0, 1) * 0.4 * rainBoost);
+    }
+    /* birdsong during the day */
+    if (nf < 0.4 && M.random() < dt / 11) W.AudioSys.chirp();
     for (var li = 0; li < lamps.length; li++) {
       lamps[li].light.intensity = 0.55 + nf * 1.05;
       lamps[li].bulb.visible = nf > 0.08;
