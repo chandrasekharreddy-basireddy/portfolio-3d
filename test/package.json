@@ -1,0 +1,6 @@
+{
+  "name": "portfolio-3d-worldsim",
+  "private": true,
+  "scripts": { "test": "node worldsim.js" },
+  "dependencies": { "three": "0.128.0", "jsdom": "^24.0.0", "fflate": "^0.8.0" }
+}

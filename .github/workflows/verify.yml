@@ -1,0 +1,16 @@
+name: worldsim
+on: [push]
+jobs:
+  simulate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 6
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 20 }
+      - name: Install headless test deps
+        run: npm install --no-fund --no-audit
+        working-directory: test
+      - name: Boot the world headlessly and drive the full journey
+        run: node worldsim.js
+        working-directory: test
