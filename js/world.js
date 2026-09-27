@@ -60,6 +60,7 @@
     window.WORLD.sun = sun;
 
     buildSky();
+    buildNight();
     buildTerrain();
     buildPath();
     buildPond();
@@ -165,6 +166,40 @@
     m.receiveShadow = HQ();
     scene.add(m);
     pathMat = m.material;
+  }
+
+  /* ---------- night: stars, moon, fireflies ---------- */
+  var stars = null, moonMesh = null, fflies = null, ffBase = null;
+  function buildNight() {
+    var n = 700, pos = new Float32Array(n * 3);
+    for (var i = 0; i < n; i++) {
+      var th = M.random() * PI * 2, ph = M.random() * 0.48 * PI, r = 188;
+      pos[i * 3] = M.cos(th) * M.cos(ph) * r;
+      pos[i * 3 + 1] = M.sin(ph) * r + 4;
+      pos[i * 3 + 2] = M.sin(th) * M.cos(ph) * r;
+    }
+    var sg = new THREE.BufferGeometry();
+    sg.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+    stars = new THREE.Points(sg, new THREE.PointsMaterial({ color: 0xdfe8ff, size: 1.35, sizeAttenuation: false, transparent: true, opacity: 0, fog: false, depthWrite: false }));
+    stars.visible = false;
+    scene.add(stars);
+    moonMesh = new THREE.Mesh(new THREE.SphereGeometry(4.6, 20, 14), new THREE.MeshBasicMaterial({ color: 0xe9eff9, fog: false, transparent: true, opacity: 0 }));
+    moonMesh.position.set(-95, 88, -65);
+    moonMesh.visible = false;
+    scene.add(moonMesh);
+    var fn = 42, fp = new Float32Array(fn * 3);
+    ffBase = [];
+    for (var fi = 0; fi < fn; fi++) {
+      var fx = (M.random() - 0.5) * 17, fz = -32 + M.random() * 62;
+      var fy = terrainHeight(fx, fz) + 0.5 + M.random() * 1.6;
+      ffBase.push({ x: fx, y: fy, z: fz });
+      fp[fi * 3] = fx; fp[fi * 3 + 1] = fy; fp[fi * 3 + 2] = fz;
+    }
+    var fg = new THREE.BufferGeometry();
+    fg.setAttribute('position', new THREE.BufferAttribute(fp, 3));
+    fflies = new THREE.Points(fg, new THREE.PointsMaterial({ color: 0xd9ff9e, size: 0.22, transparent: true, opacity: 0, blending: THREE.AdditiveBlending, depthWrite: false }));
+    fflies.visible = false;
+    scene.add(fflies);
   }
 
   /* ---------- pond ---------- */
@@ -323,16 +358,39 @@
   var curSeason = 'summer';
   var SNt = null, SC = { t: 1 };
   var seasonCallbacks = [];
+
+  /* ---------- time of day ---------- */
+  var TIMES = {
+    noon:   { night: 0, exp: 1.04 },
+    sunset: { night: 0, exp: 0.97, skyTopT: 0xc97845, skyTopA: 0.55, skyBotT: 0xe8b489, skyBotA: 0.45, sunTint: 0xffb066, sunMul: 0.8, hemiMul: 0.85, fogT: 0xd8a87c, fogA: 0.35, terrMul: 0.82, leafMul: 0.85, sunOpMul: 1 },
+    night:  { night: 1, exp: 0.8, skyTopT: 0x0a1226, skyTopA: 0.94, skyBotT: 0x16233c, skyBotA: 0.85, sunTint: 0x93a9d8, sunMul: 0.09, hemiMul: 0.24, fogT: 0x0c1626, fogA: 0.8, terrMul: 0.3, leafMul: 0.34, waterMul: 0.3, fogNMul: 0.75, sunOpMul: 0 },
+    dawn:   { night: 0, exp: 0.98, skyTopT: 0x7f8fb0, skyTopA: 0.4, skyBotT: 0xf0c09a, skyBotA: 0.5, sunTint: 0xffd9a8, sunMul: 0.65, hemiMul: 0.8, fogT: 0xc0b4c8, fogA: 0.3, terrMul: 0.8, leafMul: 0.85, sunOpMul: 0.85 }
+  };
+  var curTime = 'noon', nightF = 0;
+  function computeTargets() {
+    var d = SEASONS[curSeason], t = TIMES[curTime];
+    function c(baseHex, tintHex, amt, mul) {
+      var c0 = new THREE.Color(baseHex);
+      if (tintHex !== undefined) c0.lerp(new THREE.Color(tintHex), amt);
+      if (mul !== undefined) c0.multiplyScalar(mul);
+      return c0;
+    }
+    SNt = {
+      top: c(d.top, t.skyTopT, t.skyTopA), bot: c(d.bot, t.skyBotT, t.skyBotA),
+      fog: c(d.fog, t.fogT, t.fogA), hemi: d.hemi * (t.hemiMul || 1), sunI: d.sunI * (t.sunMul || 1),
+      terr: c(d.terr, undefined, undefined, t.terrMul), leaf: c(d.leaf, undefined, undefined, t.leafMul),
+      path: c(d.path, undefined, undefined, t.terrMul), waterA: c(d.waterA, undefined, undefined, t.waterMul),
+      waterB: c(d.waterB, undefined, undefined, t.waterMul), cloud: c(d.cloud, undefined, undefined, t.terrMul || 1),
+      fogN: d.fogN * (t.fogNMul || 1), fogF: d.fogF * (t.fogNMul || 1), sunOp: d.sunOp * (t.sunOpMul === undefined ? 1 : t.sunOpMul),
+      sunColor: t.sunTint ? new THREE.Color(t.sunTint) : new THREE.Color(0xfff2dd)
+    };
+    SC.t = 0;
+  }
+  function applyTime(name) { curTime = name; computeTargets(); }
   function applySeason(name) {
     curSeason = name;
     var d = SEASONS[name];
-    SNt = {
-      top: new THREE.Color(d.top), bot: new THREE.Color(d.bot), fog: new THREE.Color(d.fog),
-      hemi: d.hemi, sunI: d.sunI, terr: new THREE.Color(d.terr), leaf: new THREE.Color(d.leaf),
-      path: new THREE.Color(d.path), waterA: new THREE.Color(d.waterA), waterB: new THREE.Color(d.waterB),
-      cloud: new THREE.Color(d.cloud), fogN: d.fogN, fogF: d.fogF, sunOp: d.sunOp
-    };
-    SC.t = 0;
+    computeTargets();
     flowers.forEach(function (f) { f.visible = d.flowers; });
     butterflies.forEach(function (b) { b.visible = d.butterflies; });
     umbrellaOn = d.umbrella;
@@ -358,10 +416,29 @@
       scene.fog.far = lerp(scene.fog.far, SNt.fogF, e);
       hemi.intensity = lerp(hemi.intensity, SNt.hemi, e);
       sun.intensity = lerp(sun.intensity, SNt.sunI, e);
+      sun.color.lerp(SNt.sunColor, e);
       sunMesh.material.opacity = lerp(sunMesh.material.opacity, SNt.sunOp, e);
       sunHalo.material.opacity = lerp(sunHalo.material.opacity, SNt.sunOp * 0.24, e);
     }
+    nightF = lerp(nightF, TIMES[curTime].night, M.min(1, dt / 2.2));
+    renderer.toneMappingExposure = lerp(renderer.toneMappingExposure, TIMES[curTime].exp, M.min(1, dt / 1.5));
+    if (stars) { stars.material.opacity = nightF * 0.9; stars.visible = nightF > 0.02; }
+    if (moonMesh) { moonMesh.material.opacity = nightF * 0.95; moonMesh.visible = nightF > 0.02; }
+    if (fflies) {
+      fflies.visible = nightF > 0.03;
+      fflies.material.opacity = nightF;
+      if (fflies.visible) {
+        var fp = fflies.geometry.attributes.position;
+        for (var fi = 0; fi < fp.count; fi++) {
+          fp.setY(fi, ffBase[fi].y + M.sin(tSec * 1.9 + fi * 2.1) * 0.35);
+          fp.setX(fi, ffBase[fi].x + M.sin(tSec * 0.31 + fi * 1.3) * 0.6);
+        }
+        fp.needsUpdate = true;
+      }
+    }
     var d = SEASONS[curSeason];
+    flowers.forEach(function (f) { f.visible = d.flowers && nightF < 0.55; });
+    butterflies.forEach(function (b) { b.visible = d.butterflies && nightF < 0.55; });
     rain.visible = d.rain > 0;
     snow.visible = d.snow > 0;
     if (rain.visible) {
@@ -498,6 +575,7 @@
     hemi: null, sun: null, sunMesh: null,
     terrainHeight: terrainHeight, trailPos: trailPos, TRAIL_LEN: TRAIL_LEN, TRAIL_Z0: TRAIL_Z0,
     SEASONS: SEASONS, applySeason: applySeason, tickSeason: tickSeason,
+    applyTime: applyTime, nightFactor: function () { return nightF; }, timeName: function () { return curTime; },
     umbrella: function () { return umbrella; }, umbrellaOn: function () { return umbrellaOn; },
     onSeason: function (cb) { seasonCallbacks.push(cb); },
     AudioSys: AudioSys,
