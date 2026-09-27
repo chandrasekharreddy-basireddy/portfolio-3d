@@ -48,7 +48,7 @@ body { overscroll-behavior-y: none; }
 #hud-chip::after { bottom: -1px; left: -1px; border-bottom: 2px solid var(--amber); border-left: 2px solid var(--amber); }
 #hud-chip b { font-weight: normal; font-family: var(--hud); text-transform: uppercase; letter-spacing: 1.5px; font-size: 12.5px; }
 #hud-chip .found { color: var(--amber); margin-left: 10px; font-family: var(--hud); letter-spacing: 1.5px; font-size: 11px; }
-#hud-chip .trailbar { position: relative; width: 190px; height: 5px; background: #1a2c3d; margin-top: 10px; background-image: repeating-linear-gradient(90deg, rgba(255,255,255,.07) 0 1px, transparent 1px 19px); }
+#hud-chip .trailbar { position: relative; width: 180px; margin-left: 5px; height: 5px; background: #1a2c3d; margin-top: 10px; background-image: repeating-linear-gradient(90deg, rgba(255,255,255,.07) 0 1px, transparent 1px 19px); }
 #hud-chip .trailbar i { display: block; height: 100%; width: 0%; background: var(--amber); transition: width .2s; box-shadow: 0 0 8px rgba(232,176,75,.55); }
 #hud-chip .trailbar em { position: absolute; top: -2px; left: 0%; width: 9px; height: 9px; margin-left: -4.5px; background: #fff; transform: rotate(45deg); transition: left .2s; box-shadow: 0 0 6px rgba(255,255,255,.8); }
 #hud-chip .trailbar u.stop { position: absolute; top: -0.5px; width: 6px; height: 6px; margin-left: -3px; background: #48657f; transform: rotate(45deg); }
@@ -105,7 +105,7 @@ body { overscroll-behavior-y: none; }
   .card { top: auto; bottom: 94px; right: 10px; left: 10px; width: auto; max-height: 48vh; transform: translateY(30px); scrollbar-width: thin; overscroll-behavior: contain; }
   .card.open { transform: none; }
   #hud-chip { font-size: 12px; padding: 8px 12px 10px; max-width: 52vw; }
-  #hud-chip .trailbar { width: 100%; }
+  #hud-chip .trailbar { width: calc(100% - 10px); margin-left: 5px; }
   #seasons { top: 14px; right: 10px; bottom: auto; flex-direction: column; flex-wrap: nowrap; justify-content: flex-end; max-width: none; }
   .se-btn { font-size: 10px; padding: 7px 10px; min-width: 92px; text-align: center; }
   #btn-sound { top: 146px; bottom: auto; right: 10px; font-size: 10px; padding: 7px 8px; min-width: 92px; text-align: center; border-radius: 2px; background: rgba(13,22,32,.6); border: 1px solid rgba(255,255,255,.14); color: #cfe0ec; }
