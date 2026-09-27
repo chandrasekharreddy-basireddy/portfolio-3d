@@ -5,6 +5,7 @@
   var M = Math, PI = M.PI;
   var clamp = function (v, a, b) { return v < a ? a : v > b ? b : v; };
   function angLerp(a, b, t) { var d = b - a; while (d > PI) d -= 2 * PI; while (d < -PI) d += 2 * PI; return a + d * t; }
+  function lerpTo(a, b, dt, k) { return a + (b - a) * (1 - M.exp(-k * dt)); }
 
   var GAME = window.__GAME = { state: 'loading', p: 0, discovered: [], season: 'summer', frames: 0, errors: [], animWeights: null, modelLoaded: false, startTime: 0 };
 
@@ -141,6 +142,14 @@
       var light = new THREE.PointLight(0xffd9a0, 0.55, 9);
       light.position.set(bx + 1.6, W.terrainHeight(bx, bz) + 3.4, bz + 1.4);
       scene.add(light);
+      var pole = new THREE.Mesh(new THREE.CylinderGeometry(0.04, 0.04, 1.1, 6), new THREE.MeshStandardMaterial({ color: 0x2c2c30, roughness: 1 }));
+      pole.position.set(bx + 1.6, W.terrainHeight(bx, bz) + 2.85, bz + 1.4);
+      scene.add(pole);
+      var bulb = new THREE.Mesh(new THREE.SphereGeometry(0.1, 10, 8), new THREE.MeshBasicMaterial({ color: 0xffd9a0 }));
+      bulb.position.copy(pole.position); bulb.position.y += 0.62;
+      bulb.visible = false;
+      scene.add(bulb);
+      lamps.push({ light: light, bulb: bulb });
     });
     // photo on home board
     var frame = new THREE.Mesh(
@@ -303,6 +312,7 @@
   var playerRig = null, modelReady = false;
   var player = { pos: new THREE.Vector3(), yaw: PI, vel: 0 };
   var friendRig = null, anglerRig = null, npcs = [], foxRig = null, horseRig = null, flamingos = [];
+  var lamps = [];
 
   function buildCharacters() {
     buildClips();
@@ -320,6 +330,7 @@
     makeCharacter({ top: 0x8a5f4a, bottom: 0x3d4652 }, function (r) {
       if (!r) return;
       friendRig = r;
+      registerTalker(friendRig, 'friend');
       r.obj.position.set(-2.6, W.terrainHeight(-2.6, 30.4) + 0.04, 30.4);
       scene.add(r.obj);
     });
@@ -331,6 +342,7 @@
         if (!r) return;
         var npc = { rig: r, t: w.t0, dir: 1, x: w.x, t0: w.t0, t1: w.t1, speed: w.speed };
         npcs.push(npc);
+        registerTalker(r, npcs.length === 1 ? 'walker' : 'walker2');
         var tp = W.trailPos(npc.t);
         r.obj.position.set(w.x, W.terrainHeight(w.x, tp.z) + 0.04, tp.z);
         scene.add(r.obj);
@@ -339,6 +351,7 @@
     makeCharacter({ top: 0x5d6b4f, bottom: 0x4a4034 }, function (r) {
       if (!r) return;
       anglerRig = r;
+      registerTalker(anglerRig, 'angler');
       var ax = 3.7, az = 6.4;
       r.obj.position.set(ax, W.terrainHeight(ax, az) + 0.04, az);
       r.obj.rotation.y = M.atan2(7.5 - ax, 2 - az) + MODEL_FWD;
@@ -417,6 +430,67 @@
   document.getElementById('btn-zoom-in').onclick = function () { zoom = clamp(zoom * 0.78, 0.4, 2.2); };
   document.getElementById('btn-zoom-out').onclick = function () { zoom = clamp(zoom * 1.28, 0.4, 2.2); };
 
+  /* time of day */
+  var timeBtn = document.getElementById('btn-time');
+  var TIME_SEQ = ['noon', 'sunset', 'night', 'dawn'];
+  var TIME_LBL = { noon: 'NOON', sunset: 'SUNSET', night: 'NIGHT', dawn: 'DAWN' };
+  timeBtn.onclick = function () {
+    var i = TIME_SEQ.indexOf(W.timeName());
+    W.applyTime(TIME_SEQ[(i + 1) % TIME_SEQ.length]);
+    timeBtn.textContent = TIME_LBL[W.timeName()];
+  };
+
+  /* free walk mode */
+  var walkBtn = document.getElementById('btn-walk');
+  var joyEl = document.getElementById('joy');
+  var joyKnob = document.getElementById('joy-knob');
+  var walkMode = false, joyVec = { x: 0, y: 0 }, keys = {};
+  walkBtn.onclick = function () {
+    walkMode = !walkMode;
+    walkBtn.textContent = 'WALK: ' + (walkMode ? 'ON' : 'OFF');
+    joyEl.style.display = walkMode ? 'block' : 'none';
+    hint.style.display = 'block';
+    hint.textContent = walkMode ? '[ WASD / JOYSTICK TO WALK ]' : '[ SCROLL TO WALK ]';
+    setTimeout(function () { hint.style.display = 'none'; }, 4000);
+    if (!walkMode) {
+      smoothP = clamp((W.TRAIL_Z0 - player.pos.z) / W.TRAIL_LEN, 0, 1);
+      targetP = smoothP; smoothV = 0;
+    }
+  };
+  window.addEventListener('keydown', function (ev) {
+    if (!walkMode) return;
+    var k = ev.key.toLowerCase();
+    if (['w', 'a', 's', 'd', 'arrowup', 'arrowdown', 'arrowleft', 'arrowright', ' '].indexOf(k) >= 0) {
+      keys[k] = true;
+      if (k !== ' ') ev.preventDefault();
+    }
+  });
+  window.addEventListener('keyup', function (ev) { keys[ev.key.toLowerCase()] = false; });
+  (function () {
+    var pid = null, R = 42;
+    function setKnob() {
+      joyKnob.style.transform = 'translate(' + (joyVec.x * R) + 'px,' + (joyVec.y * R) + 'px)';
+    }
+    joyEl.addEventListener('pointerdown', function (ev) {
+      pid = ev.pointerId; joyEl.setPointerCapture(pid); ev.preventDefault();
+    });
+    joyEl.addEventListener('pointermove', function (ev) {
+      if (ev.pointerId !== pid) return;
+      var r = joyEl.getBoundingClientRect();
+      var dx = (ev.clientX - (r.left + r.width / 2)) / R, dy = (ev.clientY - (r.top + r.height / 2)) / R;
+      var len = M.sqrt(dx * dx + dy * dy);
+      if (len > 1) { dx /= len; dy /= len; }
+      joyVec.x = dx; joyVec.y = dy;
+      setKnob();
+    });
+    function end(ev) {
+      if (ev.pointerId !== pid) return;
+      pid = null; joyVec.x = 0; joyVec.y = 0; setKnob();
+    }
+    joyEl.addEventListener('pointerup', end);
+    joyEl.addEventListener('pointercancel', end);
+  })();
+
   // menu options
   document.querySelectorAll('#opt-quality .opt').forEach(function (b) {
     b.onclick = function () {
@@ -455,6 +529,8 @@
     hudChip.style.display = 'block';
     seasonsBar.style.display = 'flex';
     soundBtn.style.display = 'block';
+    document.getElementById('btn-time').style.display = 'block';
+    document.getElementById('btn-walk').style.display = 'block';
     navrail.style.display = 'flex';
     viewbtns.style.display = 'flex';
     hint.style.display = 'block';
@@ -498,6 +574,48 @@
     };
   };
 
+  /* ---------- NPC speech bubbles ---------- */
+  var bubblesEl = document.getElementById('bubbles');
+  var NPC_TALK = {
+    friend: ['Hey! Welcome to my little world.', 'Walk to the end of the trail, it is worth it.', 'The fox is friendly, I promise.'],
+    angler: ['Shh, the fish are resting.', 'I once caught one this big. True story.', 'Monsoon makes the fish hide.'],
+    walker: ['Nice weather for a walk today.', 'The lake view is better up ahead.', 'Have you met the horse yet?'],
+    walker2: ['Almost at the projects board!', 'Night time here is magical. Try it.', 'Snow is my favorite season here.']
+  };
+  var talkers = [];
+  function registerTalker(rig, key) { talkers.push({ rig: rig, key: key, el: null, line: 0, t: 0 }); }
+  var tmpV3 = new THREE.Vector3();
+  function tickBubbles(dt) {
+    for (var i = 0; i < talkers.length; i++) {
+      var T = talkers[i];
+      if (!T.rig || !T.rig.head) continue;
+      var d = player.pos.distanceTo(T.rig.obj.position);
+      var inRange = d < 5.5;
+      if (inRange) {
+        T.t += dt;
+        if (!T.el) {
+          T.el = document.createElement('div');
+          T.el.className = 'bub';
+          bubblesEl.appendChild(T.el);
+          T.line = M.floor(M.random() * 3); T.t = 0;
+        }
+        if (T.t > 4.2) { T.t = 0; T.line = (T.line + 1) % 3; }
+        var lines = NPC_TALK[T.key];
+        if (T.el.textContent !== lines[T.line]) T.el.textContent = lines[T.line];
+        T.rig.head.getWorldPosition(tmpV3);
+        tmpV3.y += 0.32;
+        tmpV3.project(camera);
+        if (tmpV3.z < 1 && tmpV3.z > -1) {
+          T.el.style.display = 'block';
+          T.el.style.left = ((tmpV3.x * 0.5 + 0.5) * innerWidth) + 'px';
+          T.el.style.top = ((-tmpV3.y * 0.5 + 0.5) * innerHeight) + 'px';
+        } else T.el.style.display = 'none';
+      } else if (T.el) {
+        T.el.style.display = 'none';
+      }
+    }
+  }
+
   /* ---------- loop ---------- */
   var camPos = new THREE.Vector3(0, 3.4, 44), camLook = new THREE.Vector3(0, 1.2, 38);
   var tmpV = new THREE.Vector3(), tmpV2 = new THREE.Vector3();
@@ -511,18 +629,42 @@
     tSec += dt;
     GAME.frames++;
 
-    var om = 5.2;
-    smoothV += ((targetP - smoothP) * om * om - 2 * om * smoothV) * dt;
-    smoothP += smoothV * dt;
-    smoothP = clamp(smoothP, -0.02, 1.02);
-    GAME.p = smoothP;
-    var hSpeed = M.abs(smoothV) * W.TRAIL_LEN;
-
-    var tp = W.trailPos(clamp(smoothP, 0, 1));
-    player.pos.set(tp.x, W.terrainHeight(tp.x, tp.z) + 0.04, tp.z);
-    if (M.abs(smoothV) > 0.0005) {
-      var dirYaw = smoothV > 0 ? PI : 0;
-      player.yaw = angLerp(player.yaw, dirYaw, M.min(1, dt * 8));
+    var om = 5.2, hSpeed;
+    if (walkMode) {
+      smoothV = 0;
+      var mx = (keys['d'] || keys['arrowright'] ? 1 : 0) - (keys['a'] || keys['arrowleft'] ? 1 : 0) + joyVec.x;
+      var mz = (keys['s'] || keys['arrowdown'] ? 1 : 0) - (keys['w'] || keys['arrowup'] ? 1 : 0) + joyVec.y;
+      var mlen = M.sqrt(mx * mx + mz * mz);
+      if (mlen > 1) { mx /= mlen; mz /= mlen; mlen = 1; }
+      var spd = 2.1 + 2.5 * (keys['shift'] || mlen > 0.92 ? 1 : 0);
+      hSpeed = mlen * spd;
+      if (mlen > 0.06) {
+        var nx = player.pos.x + mx * spd * dt;
+        var nz = player.pos.z + mz * spd * dt;
+        nx = clamp(nx, -13, 13); nz = clamp(nz, -43, 45);
+        function inPond(x, z) { var ddx = x - 7.5, ddz = z - 2; return ddx * ddx + ddz * ddz < 5.8 * 5.8; }
+        if (!inPond(nx, nz)) { player.pos.x = nx; player.pos.z = nz; }
+        else if (!inPond(nx, player.pos.z)) { player.pos.x = nx; }
+        else if (!inPond(player.pos.x, nz)) { player.pos.z = nz; }
+        player.yaw = angLerp(player.yaw, M.atan2(-mx, -mz) - MODEL_FWD, M.min(1, dt * 8));
+      }
+      player.pos.y = W.terrainHeight(player.pos.x, player.pos.z) + 0.04;
+      smoothP = clamp((W.TRAIL_Z0 - player.pos.z) / W.TRAIL_LEN, 0, 1);
+      GAME.p = smoothP;
+    } else {
+      smoothV += ((targetP - smoothP) * om * om - 2 * om * smoothV) * dt;
+      smoothP += smoothV * dt;
+      smoothP = clamp(smoothP, -0.02, 1.02);
+      GAME.p = smoothP;
+      hSpeed = M.abs(smoothV) * W.TRAIL_LEN;
+      var tp = W.trailPos(clamp(smoothP, 0, 1));
+      player.pos.z = tp.z;
+      player.pos.x = lerpTo(player.pos.x, tp.x, dt, 2.5);
+      player.pos.y = W.terrainHeight(player.pos.x, player.pos.z) + 0.04;
+      if (M.abs(smoothV) > 0.0005) {
+        var dirYaw = smoothV > 0 ? PI : 0;
+        player.yaw = angLerp(player.yaw, dirYaw, M.min(1, dt * 8));
+      }
     }
 
     var idleW = clamp(1 - hSpeed / 0.85, 0, 1);
@@ -617,11 +759,29 @@
     if (foxRig) {
       var fa = tSec * 0.35;
       var fx = 1.5 + M.cos(fa) * 5.5, fz = -16 + M.sin(fa) * 4.5;
+      var fd = player.pos.distanceTo(foxRig.obj.position);
+      if (walkMode && fd < 8 && fd > 1.3) {
+        var dx2 = player.pos.x - foxRig.obj.position.x, dz2 = player.pos.z - foxRig.obj.position.z;
+        var dl = M.sqrt(dx2 * dx2 + dz2 * dz2) || 1;
+        fx = foxRig.obj.position.x + (dx2 / dl) * 2.6 * dt;
+        fz = foxRig.obj.position.z + (dz2 / dl) * 2.6 * dt;
+        foxRig.obj.rotation.y = M.atan2(dx2, dz2);
+      } else if (walkMode && fd <= 1.3) {
+        fx = foxRig.obj.position.x; fz = foxRig.obj.position.z;
+        foxRig.obj.rotation.y = M.atan2(player.pos.x - fx, player.pos.z - fz);
+      } else {
+        foxRig.obj.rotation.y = M.atan2(-M.sin(fa) * 5.5, 0.0001) - PI / 2;
+      }
       foxRig.obj.position.set(fx, W.terrainHeight(fx, fz), fz);
       if (!foxRig.blob) foxRig.blob = addBlob(foxRig.obj, 0.55 / foxRig.obj.scale.x, 0.025 / foxRig.obj.scale.x);
-      foxRig.obj.rotation.y = M.atan2(-M.sin(fa) * 5.5, 0.0001) - PI / 2;
       foxRig.mixer.update(dt);
     }
+    var nf = W.nightFactor();
+    for (var li = 0; li < lamps.length; li++) {
+      lamps[li].light.intensity = 0.55 + nf * 1.05;
+      lamps[li].bulb.visible = nf > 0.08;
+    }
+    tickBubbles(dt);
     if (horseRig) {
       var ha = tSec * 0.3;
       var hx = 5.5 + M.cos(ha) * 3.5, hz = 19 + M.sin(ha) * 2.6;
@@ -642,10 +802,19 @@
     W.tickSeason(dt, tSec);
 
     var camDist = 4.6 * zoom, camH = 2.1 + 0.35 * (zoom - 1);
-    tmpV.set(player.pos.x, player.pos.y + camH, player.pos.z + camDist);
-    camPos.lerp(tmpV, 1 - M.exp(-dt * 4.5));
-    camera.position.copy(camPos);
-    camLook.lerp(tmpV2.set(player.pos.x, player.pos.y + 1.25, player.pos.z - 2), 1 - M.exp(-dt * 5));
+    if (walkMode) {
+      var fr = player.yaw + MODEL_FWD;
+      var fx2 = -M.sin(fr), fz2 = -M.cos(fr);
+      tmpV.set(player.pos.x - fx2 * camDist, player.pos.y + camH, player.pos.z - fz2 * camDist);
+      camPos.lerp(tmpV, 1 - M.exp(-dt * 4.5));
+      camera.position.copy(camPos);
+      camLook.lerp(tmpV2.set(player.pos.x + fx2 * 2, player.pos.y + 1.25, player.pos.z + fz2 * 2), 1 - M.exp(-dt * 5));
+    } else {
+      tmpV.set(player.pos.x, player.pos.y + camH, player.pos.z + camDist);
+      camPos.lerp(tmpV, 1 - M.exp(-dt * 4.5));
+      camera.position.copy(camPos);
+      camLook.lerp(tmpV2.set(player.pos.x, player.pos.y + 1.25, player.pos.z - 2), 1 - M.exp(-dt * 5));
+    }
     camera.lookAt(camLook);
 
     var sunLight = W.sun;
