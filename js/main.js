@@ -62,11 +62,13 @@
       } else if (key === 'face') {
         var chunkUrls = [];
         for (var fi = 1; fi <= 9; fi++) chunkUrls.push(url + '.' + fi);
-        Promise.all(chunkUrls.map(function (cu) { return fetch(cu).then(function (r) { return r.text(); }); }))
-          .then(function (txts) {
-            var bin = atob(txts.join(''));
-            var bytes = new Uint8Array(bin.length);
-            for (var fi2 = 0; fi2 < bin.length; fi2++) bytes[fi2] = bin.charCodeAt(fi2);
+        Promise.all(chunkUrls.map(function (cu) { return fetch(cu).then(function (r) { return r.arrayBuffer(); }); }))
+          .then(function (bufs) {
+            var total = 0;
+            bufs.forEach(function (b) { total += b.byteLength; });
+            var bytes = new Uint8Array(total);
+            var off = 0;
+            bufs.forEach(function (b) { bytes.set(new Uint8Array(b), off); off += b.byteLength; });
             var img = new Image();
             img.onload = function () { ASSETS.face = img; step(); };
             img.src = URL.createObjectURL(new Blob([bytes], { type: 'image/jpeg' }));
