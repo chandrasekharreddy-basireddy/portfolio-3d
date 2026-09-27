@@ -400,7 +400,7 @@
   }
 
   var playerRig = null, modelReady = false;
-  var player = { pos: new THREE.Vector3(), yaw: PI, vel: 0 };
+  var player = { pos: new THREE.Vector3(), yaw: PI, vel: 0, hSpeed: 0, lastMx: 0, lastMz: -1 };
   var friendRig = null, anglerRig = null, npcs = [], foxRig = null, horseRig = null, flamingos = [];
   var lamps = [];
 
@@ -1610,10 +1610,18 @@
       var mlen = M.sqrt(mx * mx + mz * mz);
       if (mlen > 1) { mx /= mlen; mz /= mlen; mlen = 1; }
       var spd = 2.1 + 2.5 * (keys['shift'] || mlen > 0.92 ? 1 : 0);
-      hSpeed = mlen * spd;
-      if (mlen > 0.06) {
-        var nx = player.pos.x + mx * spd * dt;
-        var nz = player.pos.z + mz * spd * dt;
+      /* physics: velocity integrates toward target speed (accel slower than decel),
+         momentum carries the last direction while stopping */
+      var targetSpeed = mlen > 0.06 ? mlen * spd : 0;
+      var accelK = targetSpeed > player.hSpeed ? 7.5 : 11;
+      player.hSpeed += (targetSpeed - player.hSpeed) * (1 - M.exp(-accelK * dt));
+      if (player.hSpeed < 0.006) player.hSpeed = 0;
+      if (mlen > 0.06) { player.lastMx = mx / mlen; player.lastMz = mz / mlen; }
+      hSpeed = player.hSpeed;
+      if (player.hSpeed > 0.001) {
+        var dm = player.hSpeed * dt;
+        var nx = player.pos.x + (player.lastMx || 0) * dm;
+        var nz = player.pos.z + (player.lastMz || 0) * dm;
         nx = clamp(nx, -13, 13); nz = clamp(nz, -43, 45);
         var BR = W.bridge;
         var onBridge = M.abs(nz - BR.z) < BR.half && nx > BR.x0 && nx < BR.x1;
@@ -1625,7 +1633,8 @@
         if (!inWater(nx, nz)) { player.pos.x = nx; player.pos.z = nz; }
         else if (!inWater(nx, player.pos.z)) { player.pos.x = nx; }
         else if (!inWater(player.pos.x, nz)) { player.pos.z = nz; }
-        player.yaw = angLerp(player.yaw, M.atan2(-mx, -mz) - MODEL_FWD, M.min(1, dt * 8));
+        if (mlen > 0.06)
+          player.yaw = angLerp(player.yaw, M.atan2(-mx, -mz) - MODEL_FWD, M.min(1, dt * (7 + 5 * (1 - M.min(1, player.hSpeed / 3)))));
         var nowBridge = M.abs(player.pos.z - BR.z) < BR.half && player.pos.x > BR.x0 && player.pos.x < BR.x1;
         if (nowBridge) player.pos.y = M.max(W.terrainHeight(player.pos.x, player.pos.z), W.deckY(player.pos.x)) + 0.1;
       }
@@ -1825,6 +1834,22 @@
     if (GAME._mmT > 0.1) { GAME._mmT = 0; drawMinimap(); }
     tickFootprints(dt);
     try { PLACES.tick(dt, tSec, player, GAME); } catch (e) {}
+
+    /* camera: never sink below the terrain (cheap collision clamp) */
+    if (!photo.on && !cinema.on) {
+      var camGround = W.terrainHeight(camera.position.x, camera.position.z) + 0.34;
+      if (camera.position.y < camGround) {
+        camera.position.y = camGround;
+        camera.lookAt(camLook);
+      }
+    }
+    /* speed feel: slight FOV kick while running */
+    var fovT = 52 + 6 * clamp((player.hSpeed - 2.2) / 2.4, 0, 1);
+    if (M.abs(camera.fov - fovT) > 0.05) {
+      camera.fov = lerpTo(camera.fov, fovT, dt, 3);
+      camera.updateProjectionMatrix();
+    }
+
     for (var hi = hearts.length - 1; hi >= 0; hi--) {
       var hm2 = hearts[hi];
       hm2.userData.t += dt;
