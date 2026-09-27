@@ -181,6 +181,14 @@ body { overscroll-behavior-y: none; }
 #toast { position: fixed; top: 84px; left: 50%; transform: translateX(-50%) translateY(-8px); z-index: 26; background: rgba(18,30,43,.94); border: 1px solid rgba(232,176,75,.5); border-left: 3px solid var(--amber); color: #eaf2f8; font-family: var(--hud); font-size: 12.5px; letter-spacing: 2px; text-transform: uppercase; padding: 10px 22px; border-radius: 2px; opacity: 0; transition: opacity .3s, transform .3s; pointer-events: none; white-space: nowrap; }
 #toast.on { opacity: 1; transform: translateX(-50%) translateY(0); }
 
+/* ---------- quest + minimap ---------- */
+#quest { position: fixed; left: 16px; bottom: 16px; z-index: 20; display: none; max-width: min(300px, 42vw); background: linear-gradient(180deg, rgba(16,27,39,.88), rgba(11,19,28,.88)); border: 1px solid rgba(255,255,255,.14); border-left: 2px solid var(--amber); border-radius: 3px; padding: 10px 14px 11px; }
+#quest .q-tag { font-family: var(--hud); font-size: 9.5px; letter-spacing: 3px; color: var(--amber); text-transform: uppercase; }
+#quest .q-text { font-family: var(--hud); font-size: 12px; letter-spacing: .5px; color: #dcebf5; margin-top: 4px; line-height: 1.45; }
+#quest.done { border-left-color: #6fd08a; }
+#quest.done .q-tag { color: #6fd08a; }
+#minimap { position: fixed; right: 16px; bottom: 74px; z-index: 19; display: none; border: 1px solid rgba(255,255,255,.16); border-radius: 3px; box-shadow: 0 8px 26px rgba(0,0,0,.4); }
+
 /* ---------- interaction prompt ---------- */
 #prompt { position: fixed; bottom: 118px; left: 50%; transform: translateX(-50%); z-index: 23; display: none; font-family: var(--hud); font-size: 12.5px; letter-spacing: 3px; text-transform: uppercase; color: #f5e9d0; background: linear-gradient(180deg, rgba(16,27,39,.92), rgba(11,19,28,.92)); border: 1px solid rgba(232,176,75,.55); padding: 10px 24px; border-radius: 2px; cursor: pointer; box-shadow: 0 0 18px rgba(0,0,0,.45), inset 0 0 12px rgba(232,176,75,.08); align-items: center; gap: 9px; }
 #prompt b { font-weight: normal; display: inline-block; min-width: 20px; height: 20px; line-height: 20px; text-align: center; border: 1px solid rgba(232,176,75,.6); color: var(--amber); font-size: 11px; border-radius: 2px; background: rgba(232,176,75,.08); }
@@ -189,5 +197,8 @@ body { overscroll-behavior-y: none; }
 @media (max-width: 700px) {
   #toast { top: 246px; font-size: 11px; max-width: 82vw; white-space: normal; text-align: center; }
   #prompt { bottom: 150px; font-size: 11.5px; padding: 9px 18px; }
+  #quest { left: 10px; bottom: auto; top: 118px; max-width: 62vw; padding: 8px 11px 9px; }
+  #quest .q-text { font-size: 11px; }
+  #minimap { width: 86px; height: 155px; right: 10px; bottom: auto; top: 284px; }
   #orbline { display: block; margin: 4px 0 0; }
 }

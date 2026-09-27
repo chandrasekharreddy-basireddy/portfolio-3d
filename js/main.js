@@ -980,6 +980,8 @@
   };
 
   function showHud() {
+    questEl.style.display = 'block';
+    if (mmCanvas) mmCanvas.style.display = 'block';
     hudChip.style.display = 'block';
     seasonsBar.style.display = 'flex';
     soundBtn.style.display = 'block';
@@ -1015,6 +1017,7 @@
     if (GAME.discovered.indexOf(st.id) >= 0) return;
     GAME.discovered.push(st.id);
     STATE.visitStop(st.id);
+    refreshQuest(true);
     if (STATE.unlock('first-step')) { toastMsg('ACHIEVEMENT: FIRST STEP'); dingSound(620); }
     document.querySelector('#hud-chip .found').textContent = GAME.discovered.length + ' / 6 stops';
     st.navBtn.classList.add('on');
@@ -1023,6 +1026,7 @@
       STATE.unlock('explorer');
       STATE.unlock('full-tour');
       STATE.setComplete();
+      refreshQuest(true);
       startEnding();
     }
   }
@@ -1087,6 +1091,92 @@
         T.el.style.display = 'none';
       }
     }
+  }
+
+  /* ---------- quest / objective system ---------- */
+  var questEl = document.getElementById('quest');
+  var questTextEl = document.getElementById('quest-text');
+  function questIsDone(q) {
+    if (q.stop) return STATE.data.stops.indexOf(q.stop) >= 0;
+    if (q.needOrbs) return STATE.orbCount() >= q.needOrbs;
+    if (q.final) return STATE.data.complete;
+    return false;
+  }
+  function refreshQuest(showToast) {
+    var next = null;
+    for (var i = 0; i < DATA.QUESTS.length; i++) {
+      var q = DATA.QUESTS[i];
+      if (questIsDone(q)) {
+        if (STATE.finishQuest(q.id) && showToast) {
+          toastMsg('OBJECTIVE COMPLETE');
+          dingSound(700);
+        }
+      } else if (!next) { next = q; break; }
+    }
+    if (next) questTextEl.textContent = next.text;
+    else {
+      questTextEl.textContent = 'Journey complete — thanks for walking with me';
+      questEl.classList.add('done');
+    }
+  }
+
+  /* ---------- minimap ---------- */
+  var mmCanvas = document.getElementById('minimap');
+  var mmX = mmCanvas ? mmCanvas.getContext('2d') : null;
+  var MM = { minx: -18, maxx: 24, minz: -48, maxz: 44 };
+  function mmMX(x) { return (x - MM.minx) / (MM.maxx - MM.minx) * mmCanvas.width; }
+  function mmMZ(z) { return (MM.maxz - z) / (MM.maxz - MM.minz) * mmCanvas.height; }
+  function drawMinimap() {
+    if (!mmX) return;
+    var W2 = mmCanvas.width, H2 = mmCanvas.height;
+    mmX.clearRect(0, 0, W2, H2);
+    // lake
+    mmX.fillStyle = 'rgba(63,127,158,.5)';
+    mmX.beginPath();
+    mmX.ellipse(mmMX(7.5), mmMZ(2), 9 / (MM.maxx - MM.minx) * W2, 9 / (MM.maxz - MM.minz) * H2, 0, 0, PI * 2);
+    mmX.fill();
+    // waterfall + bridge marks
+    mmX.fillStyle = 'rgba(220,240,248,.8)';
+    mmX.fillRect(mmMX(12.5) - 1.5, mmMZ(2) - 1.5, 3, 3);
+    mmX.fillStyle = 'rgba(180,140,90,.7)';
+    mmX.fillRect(mmMX(1.8), mmMZ(2) - 1, mmMX(12.7) - mmMX(1.8), 2);
+    // trail
+    mmX.strokeStyle = 'rgba(201,180,138,.45)';
+    mmX.lineWidth = 2;
+    mmX.beginPath();
+    mmX.moveTo(mmMX(0), mmMZ(38));
+    mmX.lineTo(mmMX(0), mmMZ(-33));
+    mmX.stroke();
+    // stations
+    for (var i = 0; i < STATIONS.length; i++) {
+      var st = STATIONS[i];
+      var sx = mmMX(0), sz = mmMZ(W.trailPos(st.p).z);
+      var found = GAME.discovered.indexOf(st.id) >= 0;
+      mmX.save();
+      mmX.translate(sx, sz);
+      mmX.rotate(PI / 4);
+      mmX.fillStyle = found ? '#6fd08a' : 'rgba(255,255,255,.35)';
+      mmX.fillRect(-2.6, -2.6, 5.2, 5.2);
+      mmX.restore();
+    }
+    // player
+    var px = mmMX(player.pos.x), pz = mmMZ(player.pos.z);
+    var ang = M.atan2(-M.cos(player.yaw), M.sin(player.yaw));
+    mmX.save();
+    mmX.translate(px, pz);
+    mmX.rotate(ang);
+    mmX.fillStyle = '#e8b04b';
+    mmX.beginPath();
+    mmX.moveTo(5, 0);
+    mmX.lineTo(-3.4, 3);
+    mmX.lineTo(-3.4, -3);
+    mmX.closePath();
+    mmX.fill();
+    mmX.restore();
+    // frame
+    mmX.strokeStyle = 'rgba(255,255,255,.14)';
+    mmX.lineWidth = 1;
+    mmX.strokeRect(0.5, 0.5, W2 - 1, H2 - 1);
   }
 
   /* ---------- interaction system ---------- */
@@ -1221,6 +1311,7 @@
         if (orbCount === 10 && STATE.unlock('collector')) {
           setTimeout(function () { toastMsg('ACHIEVEMENT: COLLECTOR'); dingSound(990); }, 2400);
         }
+        refreshQuest(true);
         continue;
       }
       if (!o.userData.got) collectedAll = false;
@@ -1426,6 +1517,7 @@
       foxRig.mixer.update(dt);
     }
     tickInteract();
+    drawMinimap();
     for (var hi = hearts.length - 1; hi >= 0; hi--) {
       var hm2 = hearts[hi];
       hm2.userData.t += dt;
@@ -1509,6 +1601,7 @@
     if (tipTimer) { clearInterval(tipTimer); tipTimer = null; }
     // resume saved progress
     GAME.discovered = STATE.data.stops.slice();
+    refreshQuest(false);
     document.querySelector('#hud-chip .found').textContent = GAME.discovered.length + ' / 6 stops';
     STATIONS.forEach(function (st, i) {
       if (GAME.discovered.indexOf(st.id) >= 0) {
