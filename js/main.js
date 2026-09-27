@@ -968,11 +968,14 @@
       if (GAME.state === 'intro') return; /* intro handles its own input */
       if (performance.now() - (GAME._justLeftIntro || 0) < 600) return; /* don't double-fire right after intro */
       if (GAME.state === 'paused') { togglePause(); return; }
-      var anyPanel = document.querySelector('.card.open') || document.getElementById('journey').classList.contains('on') || document.getElementById('complete').classList.contains('on');
+      var anyPanel = document.querySelector('.card.open') || document.getElementById('journey').classList.contains('on') ||
+        document.getElementById('complete').classList.contains('on') || document.getElementById('dossier').classList.contains('on');
       if (anyPanel) {
+        GAME._cardHold = performance.now();
         document.querySelectorAll('.card.open').forEach(function (c) { c.classList.remove('open'); });
         document.body.classList.remove('card-open');
         document.getElementById('journey').classList.remove('on');
+        document.getElementById('dossier').classList.remove('on');
         return;
       }
       if (tour.on || photo.on || cinema.on) { exitModes(); return; }
@@ -1411,17 +1414,65 @@
     mmX.strokeRect(0.5, 0.5, W2 - 1, H2 - 1);
   }
 
+  var DOSSIER_ARCH = {
+    'survival-school': [
+      ['NEXT.JS UI', 'exams · badges · chat'],
+      ['FASTAPI', 'server-authoritative scoring'],
+      ['POSTGRES + REDIS', 'data · sessions · queues']
+    ],
+    'signal-lite': [
+      ['NEXT.JS UI', 'conversations · e2e ui'],
+      ['FASTAPI', 'OTP · rotating tokens · websockets'],
+      ['REDIS + POSTGRES', 'pub/sub fan-out · storage']
+    ],
+    'saiu-v2': [
+      ['PWA + SERVICE WORKER', 'offline-first cache'],
+      ['GOOGLE SHEETS', 'live timetable source'],
+      ['PLANNER + ICS', 'conflict engine · calendar export']
+    ],
+    'next': [['PLOT RESERVED', 'the next build starts here']]
+  };
   function openProject(id) {
     var P = null;
     for (var i = 0; i < DATA.PORTFOLIO.projects.length; i++) if (DATA.PORTFOLIO.projects[i].id === id) P = DATA.PORTFOLIO.projects[i];
     if (!P) return;
     STATE.openProject(id);
-    openCard('projects');
-    toastMsg(P.no + ' · ' + P.name.toUpperCase());
+    var d = document.getElementById('dossier');
+    document.getElementById('d-no').textContent = P.no;
+    document.getElementById('d-name').textContent = P.name;
+    document.getElementById('d-tag').textContent = P.tag;
+    document.getElementById('d-desc').textContent = P.built;
+    var arch = document.getElementById('d-arch');
+    arch.innerHTML = '';
+    (DOSSIER_ARCH[id] || []).forEach(function (n2, ai) {
+      if (ai > 0) { var pipe = document.createElement('div'); pipe.className = 'd-pipe'; pipe.innerHTML = '<i></i>'; arch.appendChild(pipe); }
+      var nd = document.createElement('div'); nd.className = 'd-node';
+      nd.innerHTML = '<b>' + n2[0] + '</b><span>' + n2[1] + '</span>';
+      arch.appendChild(nd);
+    });
+    var chips = document.getElementById('d-chips');
+    chips.innerHTML = '';
+    P.tech.forEach(function (t) { var s = document.createElement('span'); s.className = 'chip'; s.textContent = t; chips.appendChild(s); });
+    var links = document.getElementById('d-links');
+    links.innerHTML = '';
+    if (P.live) { var a = document.createElement('a'); a.href = P.live; a.target = '_blank'; a.rel = 'noopener'; a.textContent = 'LIVE SITE'; links.appendChild(a); }
+    if (P.code) { var g = document.createElement('a'); g.href = P.code; g.target = '_blank'; g.rel = 'noopener'; g.textContent = 'GITHUB'; links.appendChild(g); }
+    if (!P.live && !P.code) { var x = document.createElement('span'); x.className = 'd-none'; x.textContent = 'COMING WHEN IT EXISTS'; links.appendChild(x); }
+    document.querySelectorAll('.card.open').forEach(function (cc) { cc.classList.remove('open'); });
+    document.body.classList.remove('card-open');
+    d.classList.add('on');
+    document.body.classList.add('card-open');
+    dingSound(620);
     if (STATE.data.projectsOpen.length >= DATA.PORTFOLIO.projects.length && STATE.unlock('project-explorer')) {
       toastMsg('ACHIEVEMENT: PROJECT EXPLORER'); dingSound(880);
     }
   }
+  (function () {
+    document.getElementById('dossier-x').onclick = function () {
+      document.getElementById('dossier').classList.remove('on');
+      document.body.classList.remove('card-open');
+    };
+  })();
 
   /* ---------- interaction system ---------- */
   var promptBtn = document.getElementById('prompt');
@@ -1730,7 +1781,7 @@
           openId = st.id;
         }
       }
-      if (openId && !walkMode) {
+      if (openId && !walkMode && performance.now() - (GAME._cardHold || 0) > 2500) {
         var cur = document.querySelector('.card.open');
         if (!cur || cur.id !== 'card-' + openId) openCard(openId);
       } else if (!openId) {

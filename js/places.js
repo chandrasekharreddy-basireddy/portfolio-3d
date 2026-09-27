@@ -71,6 +71,28 @@
       scene.add(grp);
       var entry = { grp: grp, crystal: crystal, lbl: lbl, skill: skill, on: false, ph: (i * 1.7) % (PI * 2), pos: new THREE.Vector3(px, W.terrainHeight(px, pz) + 0.9, pz) };
       CRYSTALS.push(entry);
+      addInteract({
+        id: 'skill-' + i, label: 'INSPECT ' + skill.name.toUpperCase(),
+        pos: new THREE.Vector3(px, W.terrainHeight(px, pz) + 0.9, pz), radius: 3.0,
+        action: (function (C) {
+          return function () {
+            if (!C.on) {
+              C.on = true;
+              var el = document.getElementById('skillpop');
+              if (el) {
+                el.querySelector('.sp-name').textContent = C.skill.name.toUpperCase();
+                el.querySelector('.sp-desc').textContent = C.skill.desc;
+                el.classList.add('on');
+                clearTimeout(el._t);
+                el._t = setTimeout(function () { el.classList.remove('on'); }, 4600);
+              }
+              var cnt = document.getElementById('skillcount');
+              if (cnt) cnt.textContent = 'Skills discovered in the world: ' + CRYSTALS.filter(function (c) { return c.on; }).length + ' / ' + CRYSTALS.length;
+              try { window.WORLD && window.WORLD.AudioSys.ding(560 + (C.ph % 6) * 55); } catch (e) {}
+            }
+          };
+        })(entry)
+      });
     });
 
     /* ============ HOLOGRAPHIC SKILL TREE (skills station overlook) ============ */
@@ -81,25 +103,40 @@
       var lineMat = new THREE.LineBasicMaterial({ color: 0x69d2ff, transparent: true, opacity: 0.55 });
       var nodeMatA = new THREE.MeshBasicMaterial({ color: 0x69d2ff });
       var nodeMatB = new THREE.MeshBasicMaterial({ color: 0xe8b04b });
-      // tree structure: root AI/CS -> languages -> backend -> data (all real skills)
+      // tree structure: core -> five real groups -> leaves (all real skills)
       var nodes = [
-        { n: 'CORE CS', c: [0, 1.55, 0], m: nodeMatB },
-        { n: 'Python', c: [-0.85, 0.9, 0.15], m: nodeMatA },
-        { n: 'DSA', c: [0.0, 0.95, -0.7], m: nodeMatA },
-        { n: 'JavaScript', c: [0.85, 0.9, 0.2], m: nodeMatA },
-        { n: 'FastAPI', c: [-1.1, 0.25, -0.2], m: nodeMatA },
-        { n: 'PostgreSQL', c: [-0.35, 0.3, 0.75], m: nodeMatA },
-        { n: 'Next.js', c: [0.75, 0.28, 0.65], m: nodeMatA },
-        { n: 'Git', c: [0.25, 0.2, -0.75], m: nodeMatA }
+        { n: 'CORE CS', c: [0, 1.95, 0], m: nodeMatB, big: 1 },
+        { n: 'PROGRAMMING', c: [-1.35, 1.15, 0.1], m: nodeMatB },
+        { n: 'WEB', c: [-0.55, 1.15, -0.62], m: nodeMatB },
+        { n: 'BACKEND', c: [0.35, 1.15, -0.55], m: nodeMatB },
+        { n: 'FULL STACK', c: [1.2, 1.15, 0.1], m: nodeMatB },
+        { n: 'DATA / AUTO', c: [1.65, 1.15, 0.85], m: nodeMatB },
+        { n: 'C', c: [-1.75, 0.42, -0.35], m: nodeMatA },
+        { n: 'Python', c: [-1.45, 0.42, 0.45], m: nodeMatA },
+        { n: 'JavaScript', c: [-0.75, 0.42, -0.35], m: nodeMatA },
+        { n: 'HTML', c: [-0.35, 0.42, -1.05], m: nodeMatA },
+        { n: 'CSS', c: [0.1, 0.42, -0.6], m: nodeMatA },
+        { n: 'FastAPI', c: [0.05, 0.42, 0.35], m: nodeMatA },
+        { n: 'PostgreSQL', c: [0.75, 0.42, -0.15], m: nodeMatA },
+        { n: 'Redis', c: [1.25, 0.42, 0.55], m: nodeMatA },
+        { n: 'Next.js', c: [1.6, 0.42, -0.35], m: nodeMatA },
+        { n: 'TypeScript', c: [1.95, 0.42, 0.4], m: nodeMatA },
+        { n: 'Power BI', c: [2.15, 0.42, 1.25], m: nodeMatA },
+        { n: 'n8n', c: [1.35, 0.42, 1.35], m: nodeMatA },
+        { n: 'DSA', c: [-2.35, 0.42, 0.35], m: nodeMatA },
+        { n: 'Git', c: [-2.1, 1.15, 0.85], m: nodeMatA }
       ];
-      var links = [[0, 1], [0, 2], [0, 3], [1, 4], [1, 5], [3, 6], [2, 7]];
+      var links = [
+        [0, 1], [0, 2], [0, 3], [0, 4], [0, 5], [1, 19],
+        [1, 6], [1, 7], [2, 8], [2, 9], [2, 10], [3, 11], [3, 12], [3, 13], [4, 14], [4, 15], [5, 16], [5, 17], [1, 18]
+      ];
       nodes.forEach(function (nd) {
         var m = new THREE.Mesh(nodeGeo, nd.m);
         m.position.set(nd.c[0], nd.c[1], nd.c[2]);
         g.add(m);
-        var l = new THREE.Mesh(new THREE.PlaneGeometry(0.85, 0.2),
-          new THREE.MeshBasicMaterial({ map: labelTex(nd.n, null, 512, 96, 'rgba(10,18,28,.5)', '#bfe7ff'), transparent: true }));
-        l.position.set(nd.c[0], nd.c[1] + 0.22, nd.c[2]);
+        var l = new THREE.Mesh(new THREE.PlaneGeometry(nd.big ? 1.15 : 0.95, nd.m === nodeMatB ? 0.24 : 0.2),
+          new THREE.MeshBasicMaterial({ map: labelTex(nd.n, null, 512, 96, 'rgba(10,18,28,.5)', nd.m === nodeMatB ? '#ffd98a' : '#bfe7ff'), transparent: true }));
+        l.position.set(nd.c[0], nd.c[1] + (nd.big ? 0.3 : 0.24), nd.c[2]);
         g.add(l);
       });
       links.forEach(function (lk) {
@@ -109,6 +146,7 @@
         g.add(new THREE.Line(geo, lineMat));
       });
       g.position.set(tx, ty + 0.1, tz);
+      g.scale.set(1.25, 1.15, 1.25);
       scene.add(g);
       TREE = { grp: g, ph: 0 };
       addInteract({
@@ -388,27 +426,13 @@
 
   function tick(dt, tSec, player, GAME) {
     /* skill crystals: activate on approach, idle pulse */
-    var found = 0;
     for (var i = 0; i < CRYSTALS.length; i++) {
       var C = CRYSTALS[i];
       var d2 = player.pos.distanceTo(C.pos);
-      if (!C.on && d2 < 3.4) {
-        C.on = true;
-        C.crystal.material.emissiveIntensity = 1.5;
-        var el = document.getElementById('skillpop');
-        if (el) {
-          el.querySelector('.sp-name').textContent = C.skill.name.toUpperCase();
-          el.querySelector('.sp-desc').textContent = C.skill.desc;
-          el.classList.add('on');
-          clearTimeout(el._t);
-          el._t = setTimeout(function () { el.classList.remove('on'); }, 4600);
-        }
-        var cnt = document.getElementById('skillcount');
-        if (cnt) cnt.textContent = 'Skills discovered in the world: ' + CRYSTALS.filter(function (c) { return c.on; }).length + ' / ' + CRYSTALS.length;
-        try { GAME && window.WORLD && window.WORLD.AudioSys.ding(560 + (i % 6) * 55); } catch (e) {}
-      }
-      if (C.on) found++;
-      var pulse = C.on ? 1.5 + M.sin(tSec * 2.2 + C.ph) * 0.45 : 0.35 + M.sin(tSec * 1.4 + C.ph) * 0.12;
+      var near = d2 < 3.6;
+      var pulse = C.on ? 1.5 + M.sin(tSec * 2.2 + C.ph) * 0.45
+        : near ? 0.85 + M.sin(tSec * 2.6 + C.ph) * 0.22
+        : 0.35 + M.sin(tSec * 1.4 + C.ph) * 0.12;
       C.crystal.material.emissiveIntensity = pulse;
       C.crystal.rotation.y += dt * (C.on ? 1.2 : 0.35);
       C.crystal.position.y = 0.85 + M.sin(tSec * 1.1 + C.ph) * 0.06;
