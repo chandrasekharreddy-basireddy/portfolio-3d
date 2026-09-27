@@ -207,6 +207,9 @@
       scene.add(grp);
       st.board = grp;
       st.boardMid = new THREE.Vector3(bx, W.terrainHeight(bx, bz) + 2.4, bz);
+      (function (id) {
+        addInteract({ id: 'st-' + id, label: 'READ THE ' + st.label + ' BOARD', pos: st.boardMid, radius: 4.4, action: function () { openCard(id); } });
+      })(st.id);
       var light = new THREE.PointLight(0xffd9a0, 0.55, 9);
       light.position.set(bx + 1.6, W.terrainHeight(bx, bz) + 3.4, bz + 1.4);
       scene.add(light);
@@ -427,7 +430,9 @@
     makeCharacter({ src: 'friend', keepOutfit: true }, function (r) {
       if (!r) return;
       friendRig = r;
-      registerTalker(friendRig, 'friend');
+      var tk = registerTalker(friendRig, 'friend');
+      addInteract({ id: 'npc-friend', label: 'TALK TO THE FRIEND', pos: r.obj.position, radius: 2.7,
+        action: function () { if (tk) { tk.line = (tk.line + 1) % 3; tk.t = 0.5; } } });
       r.obj.position.set(-2.6, W.terrainHeight(-2.6, 30.4) + 0.04, 30.4);
       scene.add(r.obj);
     });
@@ -448,7 +453,9 @@
     makeCharacter({ src: 'angler', keepOutfit: true }, function (r) {
       if (!r) return;
       anglerRig = r;
-      registerTalker(anglerRig, 'angler');
+      var tkA = registerTalker(anglerRig, 'angler');
+      addInteract({ id: 'npc-angler', label: 'TALK TO THE ANGLER', pos: r.obj.position, radius: 2.7,
+        action: function () { if (tkA) { tkA.line = (tkA.line + 1) % 3; tkA.t = 0.5; } } });
       var ax = 3.7, az = 6.4;
       r.obj.position.set(ax, W.terrainHeight(ax, az) + 0.04, az);
       r.obj.rotation.y = M.atan2(7.5 - ax, 2 - az) + MODEL_FWD;
@@ -457,8 +464,14 @@
       if (bob) { bob.userData.y0 = bob.position.y; r.bobber = bob; }
       scene.add(r.obj);
     });
-    attachAnimal(ASSETS.fox, 0.0065, 'Walk', 1.0, function (r) { foxRig = r; });
-    attachAnimal(ASSETS.horse, 0.005, 'horse', 0.85, function (r) { horseRig = r; });
+    attachAnimal(ASSETS.fox, 0.0065, 'Walk', 1.0, function (r) {
+      foxRig = r;
+      addInteract({ id: 'pet-fox', label: 'PET THE FOX', pos: r.obj.position, radius: 2.6, action: function () { petAnimal('fox'); } });
+    });
+    attachAnimal(ASSETS.horse, 0.005, 'horse', 0.85, function (r) {
+      horseRig = r;
+      addInteract({ id: 'pet-horse', label: 'PET THE HORSE', pos: r.obj.position, radius: 3.2, action: function () { petAnimal('horse'); } });
+    });
     attachAnimal(ASSETS.flamingo, 0.0032, 'flamingo_flyA_', 1.0, function (r) {
       if (r) flamingos.push({ rig: r, r: 3.4, h: 5.2, phase: 0, speed: 0.5 });
     });
@@ -500,6 +513,8 @@
       ring.position.set(bx, gy + 0.06, bz);
       scene.add(ring);
       WILD.statueRing = ring;
+      var sp = new THREE.Vector3(bx, gy + 1.4, bz);
+      addInteract({ id: 'statue', label: 'EXAMINE THE ARMOR', pos: sp, radius: 3.6, action: function () { toastMsg('IRON MAN — guarding the projects district'); } });
     });
     /* peacock strutting by the pond */
     loadGltf('peacock', function (obj) {
@@ -1041,7 +1056,7 @@
     walker2: ['Almost at the projects board!', 'Night time here is magical. Try it.', 'Snow is my favorite season here.']
   };
   var talkers = [];
-  function registerTalker(rig, key) { talkers.push({ rig: rig, key: key, el: null, line: 0, t: 0 }); }
+  function registerTalker(rig, key) { var t = { rig: rig, key: key, el: null, line: 0, t: 0 }; talkers.push(t); return t; }
   var tmpV3 = new THREE.Vector3();
   function tickBubbles(dt) {
     for (var i = 0; i < talkers.length; i++) {
@@ -1074,14 +1089,58 @@
     }
   }
 
+  /* ---------- interaction system ---------- */
+  var promptBtn = document.getElementById('prompt');
+  var promptTxt = document.getElementById('prompt-txt');
+  var promptKey = document.getElementById('prompt-key');
+  var interactItems = [];
+  function addInteract(cfg) { interactItems.push(cfg); }
+  var currentInteract = null;
+  function isTouch() { return window.matchMedia && window.matchMedia('(pointer: coarse)').matches; }
+  function tickInteract() {
+    currentInteract = null;
+    if (GAME.state !== 'playing') { promptBtn.style.display = 'none'; return; }
+    var best = 1e9;
+    for (var i = 0; i < interactItems.length; i++) {
+      var it = interactItems[i];
+      if (it.enabled && !it.enabled()) continue;
+      var p = typeof it.pos === 'function' ? it.pos() : it.pos;
+      var d = player.pos.distanceTo(p);
+      if (d < (it.radius || 3) && d < best) { best = d; currentInteract = it; }
+    }
+    if (currentInteract) {
+      promptTxt.textContent = currentInteract.label;
+      promptKey.style.display = isTouch() ? 'none' : 'inline-block';
+      promptBtn.style.display = 'block';
+    } else promptBtn.style.display = 'none';
+  }
+  /* interaction camera: briefly lean toward the target */
+  var focusT = 0, focusPos = new THREE.Vector3(), focusLook = new THREE.Vector3();
+  function focusOn(target) {
+    focusT = 2.6;
+    focusLook.copy(target);
+    focusPos.copy(camera.position).lerp(target, 0.42);
+    focusPos.y = M.min(focusPos.y + 0.4, M.max(focusPos.y, target.y + 1.1));
+  }
+  function doInteract() {
+    if (!currentInteract || GAME.state !== 'playing') return;
+    var it = currentInteract;
+    var p = typeof it.pos === 'function' ? it.pos() : it.pos;
+    if (it.focus !== false) focusOn(p);
+    it.action();
+  }
+  promptBtn.onclick = doInteract;
+  window.addEventListener('keydown', function (ev) {
+    if (ev.key.toLowerCase() === 'e' && GAME.state === 'playing') doInteract();
+  });
+
   /* ---------- loop ---------- */
   var camPos = new THREE.Vector3(0, 3.4, 44), camLook = new THREE.Vector3(0, 1.2, 38);
   var tmpV = new THREE.Vector3(), tmpV2 = new THREE.Vector3();
   var last = performance.now(), tSec = 0, walkPhase = 0;
   var umbrella = W.umbrella();
 
-  var petBtn = document.getElementById('btn-pet');
-  var petTarget = null, hearts = [];
+  var hearts = [];
   var heartTex = (function () {
     var hc = document.createElement('canvas'); hc.width = hc.height = 64;
     var hx = hc.getContext('2d');
@@ -1104,23 +1163,19 @@
     }
   }
   var petted = { fox: false, horse: false };
-  function tryPet() {
-    if (!petTarget) return;
-    var name = petTarget === foxRig ? 'fox' : 'horse';
-    if (petTarget === foxRig) { spawnHearts(foxRig.obj.position); petted.fox = true; }
-    else { spawnHearts(horseRig.obj.position); petted.horse = true; }
-    var prev = petTarget._petDone;
-    petTarget._petDone = true;
-    toastMsg(prev ? (name === 'fox' ? 'The fox loves you' : 'The horse loves you') : 'You petted the ' + name + '!');
+  function petAnimal(name) {
+    var rig = name === 'fox' ? foxRig : horseRig;
+    if (!rig) return;
+    spawnHearts(rig.obj.position);
+    petted[name] = true;
+    var prev = rig._petDone;
+    rig._petDone = true;
+    toastMsg(prev ? ('The ' + name + ' loves you') : ('You petted the ' + name + '!'));
     dingSound(660);
     if (petted.fox && petted.horse && STATE.unlock('animal-friend')) {
       setTimeout(function () { toastMsg('ACHIEVEMENT: ANIMAL FRIEND'); dingSound(880); }, 2400);
     }
   }
-  petBtn.onclick = tryPet;
-  window.addEventListener('keydown', function (ev) {
-    if (ev.key.toLowerCase() === 'e' && petTarget && GAME.state === 'playing') tryPet();
-  });
   function dingSound(freq) {
     try {
       W.AudioSys.ding(freq);
@@ -1308,10 +1363,10 @@
           openId = st.id;
         }
       }
-      if (openId) {
+      if (openId && !walkMode) {
         var cur = document.querySelector('.card.open');
         if (!cur || cur.id !== 'card-' + openId) openCard(openId);
-      } else {
+      } else if (!openId) {
         var cur2 = document.querySelector('.card.open');
         if (cur2) cur2.classList.remove('open');
       }
@@ -1370,16 +1425,7 @@
       if (!foxRig.blob) foxRig.blob = addBlob(foxRig.obj, 0.55 / foxRig.obj.scale.x, 0.025 / foxRig.obj.scale.x);
       foxRig.mixer.update(dt);
     }
-    // petting proximity
-    petTarget = null;
-    if (walkMode && GAME.state === 'playing') {
-      if (foxRig && player.pos.distanceTo(foxRig.obj.position) < 2.6) petTarget = foxRig;
-      else if (horseRig && player.pos.distanceTo(horseRig.obj.position) < 3.2) petTarget = horseRig;
-    }
-    if (petTarget) {
-      petBtn.style.display = 'block';
-      petBtn.textContent = 'PET THE ' + (petTarget === foxRig ? 'FOX' : 'HORSE');
-    } else petBtn.style.display = 'none';
+    tickInteract();
     for (var hi = hearts.length - 1; hi >= 0; hi--) {
       var hm2 = hearts[hi];
       hm2.userData.t += dt;
@@ -1418,7 +1464,13 @@
     W.tickSeason(dt, tSec);
 
     var camDist = 4.6 * zoom, camH = 2.1 + 0.35 * (zoom - 1);
-    if (walkMode) {
+    if (focusT > 0) {
+      focusT -= dt;
+      camPos.lerp(focusPos, 1 - M.exp(-dt * 2.6));
+      camLook.lerp(focusLook, 1 - M.exp(-dt * 3));
+      camera.position.copy(camPos);
+      camera.lookAt(camLook);
+    } else if (walkMode) {
       var fr = player.yaw + MODEL_FWD;
       var fx2 = -M.sin(fr), fz2 = -M.cos(fr);
       tmpV.set(player.pos.x - fx2 * camDist, player.pos.y + camH, player.pos.z - fz2 * camDist);
