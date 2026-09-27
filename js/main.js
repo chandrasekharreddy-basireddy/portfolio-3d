@@ -1173,6 +1173,7 @@
     if (GAME.discovered.indexOf(st.id) >= 0) return;
     GAME.discovered.push(st.id);
     STATE.visitStop(st.id);
+    try { window.PLACES && PLACES.updateWaystation(STATE, DATA); } catch (e) {}
     refreshQuest(true);
     if (STATE.unlock('first-step')) { toastMsg('ACHIEVEMENT: FIRST STEP'); dingSound(620); }
     document.querySelector('#hud-chip .found').textContent = GAME.discovered.length + ' / 6 stops';
@@ -1717,6 +1718,7 @@
     var dt = M.min(0.05, (now - last) / 1000);
     last = now;
     tSec += dt;
+    GAME.cam = camera;
     GAME.frames++;
     GAME._ptAcc = (GAME._ptAcc || 0) + dt;
     if (GAME._ptAcc >= 5) { STATE.addPlayTime(GAME._ptAcc); GAME._ptAcc = 0; }
@@ -1780,7 +1782,8 @@
         function inWater(x, z) {
           if (M.abs(z - BR.z) < BR.half + 0.4 && x > BR.x0 - 0.4 && x < BR.x1 + 0.4) return false;
           var ddx = x - 7.5, ddz = z - 2;
-          return ddx * ddx + ddz * ddz < 5.4 * 5.4;
+          if (ddx * ddx + ddz * ddz < 5.4 * 5.4) return true;
+          return x > 6.3 && x < 8.7 && z < -3.6 && z > -34; /* the river outlet */
         }
         if (!inWater(nx, nz)) { player.pos.x = nx; player.pos.z = nz; }
         else if (!inWater(nx, player.pos.z)) { player.pos.x = nx; }
@@ -1790,6 +1793,8 @@
         var nowBridge = M.abs(player.pos.z - BR.z) < BR.half && player.pos.x > BR.x0 && player.pos.x < BR.x1;
         if (nowBridge) player.pos.y = M.max(W.terrainHeight(player.pos.x, player.pos.z), W.deckY(player.pos.x)) + 0.1;
       }
+      var vdeck = (window.PLACES && PLACES.deckAt) ? PLACES.deckAt(player.pos.x, player.pos.z) : null;
+      if (vdeck !== null) player.pos.y = vdeck + 0.12;
       if (!(M.abs(player.pos.z - W.bridge.z) < W.bridge.half && player.pos.x > W.bridge.x0 && player.pos.x < W.bridge.x1))
         player.pos.y = W.terrainHeight(player.pos.x, player.pos.z) + 0.04;
       smoothP = clamp((W.TRAIL_Z0 - player.pos.z) / W.TRAIL_LEN, 0, 1);
@@ -2133,8 +2138,8 @@
   loadAll(function () {
     buildCharacters();
     buildStations();
-    try { PLACES.build({ scene: scene, W: W, addInteract: addInteract, openCard: openCard, openProject: openProject, HQ: W.HQ, DATA: DATA, toast: toastMsg, player: player }); }
-    catch (e) { GAME.errors.push('places: ' + e.message); }
+    try { PLACES.build({ scene: scene, W: W, addInteract: addInteract, openCard: openCard, openProject: openProject, HQ: W.HQ, DATA: DATA, toast: toastMsg, player: player, playerRig: playerRig, openJourney: openJourney, STATE: STATE, STATIONS: STATIONS }); } catch (e) { GAME.errors.push('places: ' + e.message); }
+    try { PLACES.updateWaystation(STATE, DATA); } catch (e) {}
     buildOrbs();
     markGroup('world', true);
     markGroup('audio', true);

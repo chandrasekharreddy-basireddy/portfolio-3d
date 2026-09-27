@@ -77,6 +77,7 @@
     buildWeather();
     buildScatter();
     buildWaterfall();
+    buildDroplets();
     buildBridge();
     buildCampsite();
     buildMountains();
@@ -252,6 +253,20 @@
     pond.position.set(LAKE.x, LAKE.waterY, LAKE.z);
     pond.visible = !HQ();
     scene.add(pond);
+    // river outlet: animated strip flowing south from the pond
+    var segN = 14, segLen = 2.3;
+    for (var rs = 0; rs < segN; rs++) {
+      var rz = -4.0 - rs * segLen - segLen / 2;
+      var rx = 7.5 - rs * 0.045;
+      var seg = new THREE.Mesh(new THREE.PlaneGeometry(1.5 - rs * 0.03, segLen + 0.12), pondMat);
+      seg.rotation.x = -PI / 2;
+      var y0 = terrainHeight(rx, rz - segLen / 2), y1 = terrainHeight(rx, rz + segLen / 2);
+      seg.rotation.y = PI / 2;
+      seg.position.set(rx, M.max(y0, y1) + 0.05 + 0.02, rz);
+      seg.rotation.x = -PI / 2 + M.atan((y1 - y0) / segLen) * 0.9;
+      seg.visible = !HQ();
+      scene.add(seg);
+    }
     // real reflective water on high quality
     if (HQ()) {
       new THREE.TextureLoader().load('models/waternormals.jpg', function (nt) {
@@ -846,6 +861,44 @@
     });
   }
 
+  var droplets = null, dropVel = null;
+  function buildDroplets() {
+    var N = 42;
+    var pos = new Float32Array(N * 3);
+    dropVel = [];
+    for (var i = 0; i < N; i++) {
+      pos[i * 3] = 12.5 + (M.random() - 0.5) * 1.4;
+      pos[i * 3 + 1] = -0.1 + M.random() * 2.2;
+      pos[i * 3 + 2] = 2.0 + (M.random() - 0.5) * 0.8;
+      dropVel.push({ x: (M.random() - 0.5) * 2.2, y: 0.6 + M.random() * 1.8, z: -M.random() * 1.6 });
+    }
+    var geo = new THREE.BufferGeometry();
+    geo.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+    var mat = new THREE.PointsMaterial({ color: 0xd7ecf5, size: 0.055, transparent: true, opacity: 0.85, sizeAttenuation: true });
+    droplets = new THREE.Points(geo, mat);
+    droplets.frustumCulled = false;
+    scene.add(droplets);
+  }
+  function tickDroplets(dt) {
+    if (!droplets) return;
+    var p = droplets.geometry.attributes.position.array;
+    for (var i = 0; i < dropVel.length; i++) {
+      dropVel[i].y -= 6.5 * dt;
+      p[i * 3] += dropVel[i].x * dt;
+      p[i * 3 + 1] += dropVel[i].y * dt;
+      p[i * 3 + 2] += dropVel[i].z * dt;
+      if (p[i * 3 + 1] < -0.35) {
+        p[i * 3] = 12.5 + (M.random() - 0.5) * 1.4;
+        p[i * 3 + 1] = 1.4 + M.random() * 1.2;
+        p[i * 3 + 2] = 2.0 + (M.random() - 0.5) * 0.8;
+        dropVel[i].x = (M.random() - 0.5) * 2.2;
+        dropVel[i].y = 0.6 + M.random() * 1.8;
+        dropVel[i].z = -M.random() * 1.6;
+      }
+    }
+    droplets.geometry.attributes.position.needsUpdate = true;
+  }
+
   function tickSeason(dt, tSec) {
     if (SNt && SC.t < 1) {
       SC.t = M.min(1, SC.t + dt / 1.2);
@@ -868,6 +921,7 @@
       sunMesh.material.opacity = lerp(sunMesh.material.opacity, SNt.sunOp, e);
       sunHalo.material.opacity = lerp(sunHalo.material.opacity, SNt.sunOp * 0.24, e);
     }
+    tickDroplets(dt);
     if (water) {
       var dS = SEASONS[curSeason];
       waterBase.setHex(dS.waterA).multiplyScalar(0.55).lerp(DEEP_COLOR, 0.35);

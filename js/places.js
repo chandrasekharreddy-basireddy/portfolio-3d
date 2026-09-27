@@ -3,8 +3,9 @@
    Built procedurally from DATA (js/data.js). */
 (function () {
   'use strict';
-  var M = Math, PI = M.PI;
+  var M = Math, PI = M.PI, TMPV = null;
   var CRYSTALS = [], TREE = null, MAST_LIGHT = null, TERMINAL = null, DEVROOM = null, SIGNS = [];
+  var WAYSTATION = null, DECK = null, ID_CARD = null;
 
   function labelTex(title, sub, w, h, bg, fg) {
     var c = document.createElement('canvas');
@@ -27,8 +28,10 @@
   }
 
   function build(ctx) {
+    if (!TMPV && window.THREE) TMPV = new THREE.Vector3();
     var scene = ctx.scene, W = ctx.W, addInteract = ctx.addInteract, openCard = ctx.openCard,
-      openProject = ctx.openProject, HQ = ctx.HQ, DATA = ctx.DATA, toast = ctx.toast, player = ctx.player;
+      openProject = ctx.openProject, HQ = ctx.HQ, DATA = ctx.DATA, toast = ctx.toast, player = ctx.player,
+      playerRig = ctx.playerRig, openJourney = ctx.openJourney, STATE = ctx.STATE, STATIONS = ctx.STATIONS;
     var SK = DATA.PORTFOLIO.skills;
 
     /* ============ SKILLS FOREST (west of the trail, z 8..24) ============ */
@@ -403,6 +406,154 @@
       });
     })();
 
+    /* ============ player ID card (subtle, on the armor) ============ */
+    (function () {
+      var c = document.createElement('canvas');
+      c.width = 256; c.height = 160;
+      var x = c.getContext('2d');
+      x.fillStyle = '#e8e2d2'; x.fillRect(0, 0, 256, 160);
+      x.fillStyle = '#1a2430'; x.fillRect(0, 0, 256, 34);
+      x.fillStyle = '#e8b04b'; x.font = '600 17px Georgia'; x.textAlign = 'center';
+      x.fillText('STUDENT ID', 128, 24);
+      x.fillStyle = '#1a2430'; x.font = '600 21px Georgia';
+      x.fillText('CHANDRA S. REDDY', 128, 78);
+      x.font = '15px Georgia'; x.fillStyle = '#3a4a5a';
+      x.fillText('SAI UNIVERSITY', 128, 106);
+      x.fillText('B.TECH COMPUTER SCIENCE', 128, 128);
+      var tex = new THREE.CanvasTexture(c);
+      tex.anisotropy = 4;
+      var card = new THREE.Mesh(new THREE.PlaneGeometry(0.15, 0.095),
+        new THREE.MeshStandardMaterial({ map: tex, roughness: 0.7, side: THREE.DoubleSide }));
+      var holder = playerRig && playerRig.obj ? playerRig.obj : null;
+      var bone = null;
+      if (holder) holder.traverse(function (o) { if (!bone && o.isBone && /hips/i.test(o.name)) bone = o; });
+      if (bone) bone.add(card); else if (holder) holder.add(card);
+      card.position.set(0.13, -0.02, 0.16);
+      card.rotation.set(0.1, 0.35, 0.12);
+      ID_CARD = { mesh: card, seen: false };
+    })();
+
+    /* ============ achievements waystation (between education and contact) ============ */
+    (function () {
+      var cx = -6.5, cz = -23.5, cy = W.terrainHeight(cx, cz);
+      var g = new THREE.Group();
+      var obelisk = new THREE.Mesh(new THREE.ConeGeometry(0.42, 2.3, 4),
+        new THREE.MeshStandardMaterial({ color: 0x5b6875, roughness: 0.85, flatShading: true }));
+      obelisk.position.y = 1.15;
+      obelisk.castShadow = HQ();
+      g.add(obelisk);
+      var base = new THREE.Mesh(new THREE.CylinderGeometry(0.72, 0.85, 0.3, 8), new THREE.MeshStandardMaterial({ color: 0x39424e, roughness: 1 }));
+      base.position.y = 0.15;
+      g.add(base);
+      var cv = document.createElement('canvas');
+      cv.width = 512; cv.height = 128;
+      var cx2 = cv.getContext('2d');
+      var holo = new THREE.Mesh(new THREE.PlaneGeometry(2.4, 0.6),
+        new THREE.MeshBasicMaterial({ map: new THREE.CanvasTexture(cv), transparent: true }));
+      holo.position.y = 2.75;
+      g.add(holo);
+      SIGNS.push(holo);
+      g.position.set(cx, cy, cz);
+      scene.add(g);
+      WAYSTATION = { grp: g, plinths: [], ctx: cx2, tex: holo.material.map };
+      STATIONS.forEach(function (st, i) {
+        var a = PI * 2 * i / 6 - PI / 2;
+        var px = cx + M.cos(a) * 2.7, pz = cz + M.sin(a) * 2.7;
+        var py = W.terrainHeight(px, pz);
+        var capMat = new THREE.MeshStandardMaterial({ color: 0x8a929c, roughness: 0.7, emissive: 0xe8b04b, emissiveIntensity: 0 });
+        var stem = new THREE.Mesh(new THREE.CylinderGeometry(0.16, 0.2, 0.55, 6), new THREE.MeshStandardMaterial({ color: 0x5d6670, roughness: 1 }));
+        stem.position.set(px, py + 0.27, pz);
+        var cap = new THREE.Mesh(new THREE.CylinderGeometry(0.24, 0.24, 0.09, 8), capMat);
+        cap.position.set(px, py + 0.59, pz);
+        stem.castShadow = cap.castShadow = HQ();
+        scene.add(stem, cap);
+        var lbl = new THREE.Mesh(new THREE.PlaneGeometry(0.8, 0.2),
+          new THREE.MeshBasicMaterial({ map: labelTex(st.label, null, 512, 96, 'rgba(10,16,24,.85)', '#c2d4e0'), transparent: true }));
+        lbl.position.set(px, py + 0.82, pz);
+        SIGNS.push(lbl);
+        WAYSTATION.plinths.push({ id: st.id, cap: cap, mat: capMat });
+      });
+      addInteract({
+        id: 'waystation', label: 'VIEW YOUR JOURNEY', pos: new THREE.Vector3(cx, cy + 1, cz), radius: 3.6,
+        action: function () { if (openJourney) openJourney(); }
+      });
+    })();
+
+    /* ============ final viewpoint deck (end of the trail) ============ */
+    (function () {
+      var wood = new THREE.MeshStandardMaterial({ color: 0x7a5a38, roughness: 0.9 });
+      var wood2 = new THREE.MeshStandardMaterial({ color: 0x63472c, roughness: 1 });
+      var y0 = W.terrainHeight(0, -30.1);
+      var y1 = y0 + 0.85;
+      DECK = { y0: y0, y1: y1, x0: -2.1, x1: 2.1, zr0: -30.1, zr1: -31.6, zp0: -31.6, zp1: -34.3 };
+      function post(px, py, pz, h) {
+        var s = new THREE.Mesh(new THREE.CylinderGeometry(0.055, 0.07, h, 6), wood2);
+        s.position.set(px, py + h / 2, pz);
+        s.castShadow = HQ();
+        scene.add(s);
+      }
+      // ramp
+      var rampLen = DECK.zr1 - DECK.zr0;
+      var ramp = new THREE.Mesh(new THREE.BoxGeometry(4.2, 0.08, M.sqrt(rampLen * rampLen + (y1 - y0) * (y1 - y0))), wood);
+      ramp.position.set(0, (y0 + y1) / 2 - 0.02, (DECK.zr0 + DECK.zr1) / 2);
+      ramp.rotation.x = -M.atan((y1 - y0) / -rampLen);
+      ramp.receiveShadow = HQ();
+      scene.add(ramp);
+      // platform
+      var plat = new THREE.Mesh(new THREE.BoxGeometry(4.4, 0.1, DECK.zp1 - DECK.zp0), wood);
+      plat.position.set(0, y1 - 0.05, (DECK.zp0 + DECK.zp1) / 2);
+      plat.receiveShadow = plat.castShadow = HQ();
+      scene.add(plat);
+      // support posts
+      [-1.9, 1.9].forEach(function (pxx) {
+        [DECK.zp0 + 0.3, DECK.zp1 - 0.3].forEach(function (pzz) {
+          var gy = W.terrainHeight(pxx, pzz);
+          post(pxx, gy, pzz, y1 - gy);
+        });
+        post(pxx, W.terrainHeight(pxx, DECK.zr0) - 0.3, DECK.zr0 - 0.2, 1.1);
+      });
+      // railings along the platform sides + back
+      [-1.95, 1.95].forEach(function (pxx) {
+        var rail = new THREE.Mesh(new THREE.BoxGeometry(0.06, 0.05, DECK.zp1 - DECK.zp0), wood2);
+        rail.position.set(pxx, y1 + 0.62, (DECK.zp0 + DECK.zp1) / 2);
+        scene.add(rail);
+        for (var zz = DECK.zp0 + 0.35; zz < DECK.zp1; zz += 0.85) post(pxx, y1, zz, 0.62);
+      });
+      var back = new THREE.Mesh(new THREE.BoxGeometry(3.9, 0.05, 0.06), wood2);
+      back.position.set(0, y1 + 0.62, DECK.zp1 + 0.02);
+      scene.add(back);
+      for (var bx = -1.7; bx <= 1.7; bx += 0.85) post(bx, y1, DECK.zp1, 0.62);
+      // bench facing the world
+      var bench = new THREE.Group();
+      var seat = new THREE.Mesh(new THREE.BoxGeometry(1.5, 0.07, 0.42), wood);
+      seat.position.y = 0.42;
+      var bk = new THREE.Mesh(new THREE.BoxGeometry(1.5, 0.4, 0.06), wood);
+      bk.position.set(0, 0.68, -0.22);
+      bench.add(seat, bk);
+      [-0.6, 0.6].forEach(function (lx) {
+        var lg = new THREE.Mesh(new THREE.BoxGeometry(0.07, 0.42, 0.36), wood2);
+        lg.position.set(lx, 0.21, 0);
+        bench.add(lg);
+      });
+      bench.position.set(-1.15, y1 + 0.05, DECK.zp1 - 1.1);
+      scene.add(bench);
+      // brass telescope
+      var scope = new THREE.Group();
+      var tube = new THREE.Mesh(new THREE.CylinderGeometry(0.045, 0.06, 0.5, 10), new THREE.MeshStandardMaterial({ color: 0xb08d57, roughness: 0.35, metalness: 0.75 }));
+      tube.rotation.x = -0.55;
+      var stand = new THREE.Mesh(new THREE.CylinderGeometry(0.03, 0.05, 0.85, 6), wood2);
+      stand.position.y = 0.4;
+      tube.position.y = 0.95;
+      scope.add(tube, stand);
+      scope.position.set(1.5, y1 + 0.05, DECK.zp1 - 1.0);
+      scope.rotation.y = 0.5;
+      scene.add(scope);
+      addInteract({
+        id: 'viewpoint', label: 'LOOK OUT OVER THE WORLD', pos: new THREE.Vector3(0, y1 + 1, DECK.zp1 - 1.5), radius: 3.4,
+        action: function () { toast('From up here you can see everything you walked through'); }
+      });
+    })();
+
     /* ============ SECRET DEV ROOM (hidden behind the waterfall) ============ */
     (function () {
       var vx = 16.3, vz = 5.8, vy = W.terrainHeight(vx, vz);
@@ -460,11 +611,51 @@
         TERMINAL.tex.needsUpdate = true;
       }
     }
+    if (ID_CARD && !ID_CARD.seen && ID_CARD.mesh.getWorldPosition) {
+      ID_CARD.mesh.getWorldPosition(TMPV);
+      if (GAME && GAME.cam && TMPV.distanceTo(GAME.cam.position) < 2.1) {
+        ID_CARD.seen = true;
+        toast('STUDENT ID — CHANDRA SEKHAR REDDY · SAI UNIVERSITY · B.TECH COMPUTER SCIENCE');
+      }
+    }
     for (var s3 = 0; s3 < SIGNS.length; s3++) {
       if (SIGNS[s3].userData.float === undefined) SIGNS[s3].userData.float = M.random() * 6.28;
       SIGNS[s3].position.y += M.sin(tSec * 1.6 + SIGNS[s3].userData.float) * 0.0006;
     }
   }
 
-  window.PLACES = { build: build, tick: tick };
+  function updateWaystation(STATE, DATA) {
+    if (!WAYSTATION) return;
+    var stops = 0;
+    WAYSTATION.plinths.forEach(function (P) {
+      var got = STATE.data.stops.indexOf(P.id) >= 0;
+      P.mat.emissiveIntensity = got ? 0.9 : 0;
+      if (got) stops++;
+    });
+    var x = WAYSTATION.ctx, cv = x.canvas;
+    x.clearRect(0, 0, cv.width, cv.height);
+    x.fillStyle = 'rgba(8,14,22,.82)';
+    x.fillRect(0, 0, cv.width, cv.height);
+    x.strokeStyle = 'rgba(105,210,255,.5)';
+    x.lineWidth = 3;
+    x.strokeRect(6, 6, cv.width - 12, cv.height - 12);
+    x.fillStyle = '#8fd0ff';
+    x.font = '600 34px Georgia';
+    x.textAlign = 'center';
+    x.fillText('THE JOURNEY', cv.width / 2, 52);
+    x.fillStyle = '#e8b04b';
+    x.font = '28px Georgia';
+    x.fillText(stops + ' / 6 STOPS  ·  ' + STATE.orbCount() + ' / 10 ORBS', cv.width / 2, 98);
+    WAYSTATION.tex.needsUpdate = true;
+  }
+
+  function deckAt(x, z) {
+    if (!DECK) return null;
+    if (x < DECK.x0 || x > DECK.x1) return null;
+    if (z <= DECK.zr0 && z >= DECK.zr1) return DECK.y0 + (DECK.zr0 - z) / (DECK.zr0 - DECK.zr1) * (DECK.y1 - DECK.y0);
+    if (z < DECK.zr1 && z >= DECK.zp1) return DECK.y1;
+    return null;
+  }
+
+  window.PLACES = { build: build, tick: tick, updateWaystation: updateWaystation, deckAt: deckAt };
 })();
