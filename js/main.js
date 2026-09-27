@@ -132,7 +132,9 @@
       grp.add(board, postL, postR, roof);
       var bx = -4.6, bz = tp.z;
       grp.position.set(bx, W.terrainHeight(bx, bz), bz);
-      grp.rotation.y = PI / 2 + 0.5;
+      grp.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), terrainNormal(bx, bz));
+      grp.rotateY(PI / 2 - 0.4);
+      addBlob(grp, 1.55, 0.03);
       scene.add(grp);
       st.board = grp;
       st.boardMid = new THREE.Vector3(bx, W.terrainHeight(bx, bz) + 2.4, bz);
@@ -169,6 +171,59 @@
       return new THREE.AnimationClip(c.name, c.duration, tracks);
     });
   }
+  var blobTex = (function () {
+    var c = document.createElement('canvas'); c.width = c.height = 128;
+    var x = c.getContext('2d');
+    var g = x.createRadialGradient(64, 64, 6, 64, 64, 62);
+    g.addColorStop(0, 'rgba(0,0,0,0.42)'); g.addColorStop(1, 'rgba(0,0,0,0)');
+    x.fillStyle = g; x.fillRect(0, 0, 128, 128);
+    return new THREE.CanvasTexture(c);
+  })();
+  function addBlob(obj, r, y) {
+    var m = new THREE.Mesh(new THREE.PlaneGeometry(r * 2, r * 2),
+      new THREE.MeshBasicMaterial({ map: blobTex, transparent: true, depthWrite: false }));
+    m.rotation.x = -PI / 2;
+    m.position.y = y;
+    m.renderOrder = 1;
+    obj.add(m);
+    return m;
+  }
+  function poseHands(obj) {
+    var HP = window.__HANDP || { axis: 'x', sign: 1, amp: 1 };
+    var e = new THREE.Euler(), q = new THREE.Quaternion();
+    obj.traverse(function (o) {
+      if (!o.isBone) return;
+      var m = /^(Left|Right)Hand(Thumb|Index|Middle|Ring|Pinky)([1-4])$/.exec(o.name);
+      if (!m) return;
+      var base = { Thumb: 0.48, Index: 0.58, Middle: 0.6, Ring: 0.62, Pinky: 0.64 }[m[2]];
+      var amt = HP.sign * base * HP.amp * (m[3] === '1' ? 0.72 : 1);
+      if (HP.axis === 'x') e.set(amt, 0, 0); else if (HP.axis === 'y') e.set(0, amt, 0); else e.set(0, 0, amt);
+      q.setFromEuler(e);
+      o.quaternion.copy(q);
+    });
+  }
+  var swingE = new THREE.Euler(), swingQ = new THREE.Quaternion();
+  function armSwing(rig, phase, amp) {
+    if (!rig.armL || !rig.armR) return;
+    var s = M.sin(phase) * amp;
+    swingE.set(s, 0, 0); swingQ.setFromEuler(swingE);
+    rig.armL.quaternion.multiply(swingQ);
+    swingE.set(-s, 0, 0); swingQ.setFromEuler(swingE);
+    rig.armR.quaternion.multiply(swingQ);
+    if (rig.spine) {
+      swingE.set(amp * 0.2, -M.cos(phase) * amp * 0.3, 0); swingQ.setFromEuler(swingE);
+      rig.spine.quaternion.multiply(swingQ);
+    }
+  }
+  function terrainNormal(x, z) {
+    var e2 = 0.6;
+    var n = new THREE.Vector3(
+      W.terrainHeight(x - e2, z) - W.terrainHeight(x + e2, z),
+      2 * e2,
+      W.terrainHeight(x, z - e2) - W.terrainHeight(x, z + e2)
+    );
+    return n.normalize();
+  }
   function makeCharacter(opts, onReady) {
     try {
       gltfLoader.parse(ASSETS.avatar, '', function (g) {
@@ -198,9 +253,18 @@
             a.setEffectiveWeight(c.name === 'Idle' ? 1 : 0);
             actions[c.name.toLowerCase()] = a;
           });
-          var head = null, hand = null;
-          obj.traverse(function (o) { if (o.isBone) { if (o.name === 'Head' && !head) head = o; if (o.name === 'RightHand' && !hand) hand = o; } });
-          onReady({ obj: obj, mixer: mixer, actions: actions, mats: mats, head: head, hand: hand, _headAdd: 0 });
+          var head = null, hand = null, armL = null, armR = null, spine = null;
+          obj.traverse(function (o) {
+            if (!o.isBone) return;
+            if (o.name === 'Head' && !head) head = o;
+            if (o.name === 'RightHand' && !hand) hand = o;
+            if (o.name === 'LeftArm' && !armL) armL = o;
+            if (o.name === 'RightArm' && !armR) armR = o;
+            if (o.name === 'Spine1' && !spine) spine = o;
+          });
+          poseHands(obj);
+          addBlob(obj, 0.62, -0.02);
+          onReady({ obj: obj, mixer: mixer, actions: actions, mats: mats, head: head, hand: hand, armL: armL, armR: armR, spine: spine, _headAdd: 0 });
         } catch (e) { GAME.errors.push('character: ' + e.message); onReady(null); }
       }, function (e) { GAME.errors.push('character parse: ' + e); onReady(null); });
     } catch (e) { GAME.errors.push('character: ' + e.message); onReady(null); }
@@ -250,12 +314,13 @@
       r.obj.rotation.y = player.yaw + MODEL_FWD;
       scene.add(r.obj);
       modelReady = true;
+      GAME.model = r.obj;
       GAME.modelLoaded = true;
     });
     makeCharacter({ top: 0x8a5f4a, bottom: 0x3d4652 }, function (r) {
       if (!r) return;
       friendRig = r;
-      r.obj.position.set(-2.6, W.terrainHeight(-2.6, 30.4), 30.4);
+      r.obj.position.set(-2.6, W.terrainHeight(-2.6, 30.4) + 0.04, 30.4);
       scene.add(r.obj);
     });
     [
@@ -267,7 +332,7 @@
         var npc = { rig: r, t: w.t0, dir: 1, x: w.x, t0: w.t0, t1: w.t1, speed: w.speed };
         npcs.push(npc);
         var tp = W.trailPos(npc.t);
-        r.obj.position.set(w.x, W.terrainHeight(w.x, tp.z), tp.z);
+        r.obj.position.set(w.x, W.terrainHeight(w.x, tp.z) + 0.04, tp.z);
         scene.add(r.obj);
       });
     });
@@ -275,7 +340,7 @@
       if (!r) return;
       anglerRig = r;
       var ax = 3.7, az = 6.4;
-      r.obj.position.set(ax, W.terrainHeight(ax, az), az);
+      r.obj.position.set(ax, W.terrainHeight(ax, az) + 0.04, az);
       r.obj.rotation.y = M.atan2(7.5 - ax, 2 - az) + MODEL_FWD;
       scene.add(r.obj);
       var hat = new THREE.Mesh(new THREE.ConeGeometry(0.34, 0.16, 10), new THREE.MeshStandardMaterial({ color: 0xc9a86a, roughness: 1 }));
@@ -436,7 +501,7 @@
   /* ---------- loop ---------- */
   var camPos = new THREE.Vector3(0, 3.4, 44), camLook = new THREE.Vector3(0, 1.2, 38);
   var tmpV = new THREE.Vector3(), tmpV2 = new THREE.Vector3();
-  var last = performance.now(), tSec = 0;
+  var last = performance.now(), tSec = 0, walkPhase = 0;
   var umbrella = W.umbrella();
 
   function tick(now) {
@@ -474,6 +539,9 @@
       playerRig.actions.walk.setEffectiveWeight(walkW / tot);
       playerRig.actions.run.setEffectiveWeight(runW / tot);
       playerRig.mixer.update(dt);
+      var mvBlend = clamp((walkW + runW) / tot, 0, 1);
+      walkPhase += dt * clamp(hSpeed, 0, 3.2) * (5.2 + 2.2 * (runW / tot));
+      armSwing(playerRig, walkPhase, 0.5 * mvBlend * clamp(hSpeed / 1.2, 0, 1));
       var nearSt = null;
       for (var ns = 0; ns < STATIONS.length; ns++) {
         if (M.abs(smoothP - STATIONS[ns].p) < 0.035) { nearSt = STATIONS[ns]; break; }
@@ -533,12 +601,14 @@
       if (N.t > N.t1) { N.t = N.t1; N.dir = -1; }
       if (N.t < N.t0) { N.t = N.t0; N.dir = 1; }
       var wp = W.trailPos(N.t);
-      N.rig.obj.position.set(N.x, W.terrainHeight(N.x, wp.z), wp.z);
+      N.rig.obj.position.set(N.x, W.terrainHeight(N.x, wp.z) + 0.04, wp.z);
       N.rig.obj.rotation.y = (N.dir > 0 ? PI : 0) + MODEL_FWD;
       N.rig.actions.idle.setEffectiveWeight(0);
       N.rig.actions.walk.setEffectiveWeight(1);
       N.rig.actions.run.setEffectiveWeight(0);
       N.rig.mixer.update(dt);
+      N.phase = (N.phase || 0) + dt * N.speed * 5.4;
+      armSwing(N.rig, N.phase, 0.5);
     }
     if (anglerRig) {
       anglerRig.mixer.update(dt);
@@ -548,6 +618,7 @@
       var fa = tSec * 0.35;
       var fx = 1.5 + M.cos(fa) * 5.5, fz = -16 + M.sin(fa) * 4.5;
       foxRig.obj.position.set(fx, W.terrainHeight(fx, fz), fz);
+      if (!foxRig.blob) foxRig.blob = addBlob(foxRig.obj, 0.55 / foxRig.obj.scale.x, 0.025 / foxRig.obj.scale.x);
       foxRig.obj.rotation.y = M.atan2(-M.sin(fa) * 5.5, 0.0001) - PI / 2;
       foxRig.mixer.update(dt);
     }
@@ -555,6 +626,7 @@
       var ha = tSec * 0.3;
       var hx = 5.5 + M.cos(ha) * 3.5, hz = 19 + M.sin(ha) * 2.6;
       horseRig.obj.position.set(hx, W.terrainHeight(hx, hz) + 0.29, hz);
+      if (!horseRig.blob) horseRig.blob = addBlob(horseRig.obj, 1.05 / horseRig.obj.scale.x, -0.26 / horseRig.obj.scale.x);
       horseRig.obj.rotation.y = -ha;
       horseRig.mixer.update(dt);
     }
