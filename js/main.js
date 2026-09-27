@@ -40,6 +40,22 @@
     flower: 'models/flower.glb'
   };
   var ASSETS = { walker: null, friend: null, angler: null, fox: null, horse: null, flamingo: null, clips: null, photo: null, face: null, wolf: null, ironman: null, peacock: null, toucan: null, bird: null, monkey: null, flower: null, fallroad: null, birch: null };
+  var LOAD_GROUPS = {
+    character: ['walker', 'friend', 'angler', 'photo', 'face'],
+    wild: ['fox', 'horse', 'flamingo', 'wolf', 'peacock', 'toucan', 'bird', 'monkey', 'flower'],
+    env: ['fallroad', 'birch'],
+    anims: ['clipsIdle', 'clipsWalk', 'clipsRun']
+  };
+  var loadDone = {};
+  function markGroup(g, on) {
+    var el = loaderEl.querySelector('.li[data-g="' + g + '"]');
+    if (el) el.classList.toggle('on', !!on);
+  }
+  function refreshGroups() {
+    for (var g in LOAD_GROUPS) {
+      if (LOAD_GROUPS[g].every(function (k) { return loadDone[k]; })) markGroup(g, true);
+    }
+  }
   var LOAD_TOTAL = 20, loadedCount = 0;
   var loaders = [
     ['walker', ASSET_URLS.walker, 'loading the walker'],
@@ -63,6 +79,16 @@
     ['fallroad', ASSET_URLS.fallroad, 'paving the fall road'],
     ['birch', ASSET_URLS.birch, 'planting the birches']
   ];
+  var tipEl = document.getElementById('load-tip');
+  var tipI = 0, tipTimer = null;
+  if (tipEl && window.DATA && DATA.LOADING_TIPS.length) {
+    tipEl.textContent = DATA.LOADING_TIPS[0];
+    tipTimer = setInterval(function () {
+      tipI = (tipI + 1) % DATA.LOADING_TIPS.length;
+      tipEl.textContent = DATA.LOADING_TIPS[tipI];
+    }, 4200);
+  }
+
   function loadAll(done) {
     loaders.forEach(function (item) {
       var key = item[0], url = item[1], label = item[2];
@@ -73,7 +99,7 @@
           if (ASSETS.clipsIdle && ASSETS.clipsWalk && ASSETS.clipsRun) {
             ASSETS.clips = [ASSETS.clipsIdle, ASSETS.clipsWalk, ASSETS.clipsRun];
           }
-          step();
+          step(key);
         });
       } else if (key === 'face') {
         var chunkUrls = [];
@@ -86,7 +112,7 @@
             var off = 0;
             bufs.forEach(function (b) { bytes.set(new Uint8Array(b), off); off += b.byteLength; });
             var img = new Image();
-            img.onload = function () { ASSETS.face = img; step(); };
+            img.onload = function () { ASSETS.face = img; step(key); };
             img.src = URL.createObjectURL(new Blob([bytes], { type: 'image/jpeg' }));
           });
       } else if (key === 'photo') {
@@ -94,7 +120,7 @@
           new THREE.TextureLoader().load(window.__PHOTO_URI, function (t) {
             t.encoding = THREE.sRGBEncoding;
             ASSETS.photo = t;
-            step();
+            step(key);
           });
         } else {
           var parts = [];
@@ -114,13 +140,15 @@
       } else {
         fetch(url).then(function (r) { return r.arrayBuffer(); }).then(function (buf) {
           ASSETS[key] = buf;
-          step();
+          step(key);
         });
       }
     });
-    function step() {
+    function step(key) {
+      if (key) loadDone[key] = true;
       loadedCount++;
       barEl.style.width = M.round(loadedCount / LOAD_TOTAL * 100) + '%';
+      refreshGroups();
       if (loadedCount >= LOAD_TOTAL) {
         statusEl.textContent = 'ready';
         setTimeout(function () { done(); }, 350);
@@ -667,14 +695,24 @@
     document.querySelectorAll('.card.open').forEach(function (c) { c.classList.remove('open'); });
     var el = document.getElementById('card-' + id);
     if (el) el.classList.add('open');
+    if (id === 'projects' && window.DATA) {
+      DATA.PORTFOLIO.projects.forEach(function (p) { STATE.openProject(p.id); });
+      if (STATE.data.projectsOpen.length >= 4 && STATE.unlock('project-explorer')) {
+        toastMsg('ACHIEVEMENT: PROJECT EXPLORER'); dingSound(880);
+      }
+    }
   }
   document.querySelectorAll('.card .x').forEach(function (x) {
     x.onclick = function () { x.parentElement.classList.remove('open'); };
   });
   document.querySelectorAll('.se-btn').forEach(function (b) {
     b.onclick = function () {
-      W.applySeason(b.getAttribute('data-s'));
-      GAME.season = b.getAttribute('data-s');
+      var sn = b.getAttribute('data-s');
+      W.applySeason(sn);
+      GAME.season = sn;
+      STATE.seeSeason(sn);
+      if (['summer', 'rainy', 'monsoon', 'winter'].every(function (x) { return STATE.data.seasonsSeen.indexOf(x) >= 0; })
+          && STATE.unlock('weathered')) { toastMsg('ACHIEVEMENT: WEATHERED'); dingSound(880); }
       document.querySelectorAll('.se-btn').forEach(function (x) { x.classList.toggle('on', x === b); });
     };
   });
@@ -871,10 +909,15 @@
   function discover(st) {
     if (GAME.discovered.indexOf(st.id) >= 0) return;
     GAME.discovered.push(st.id);
+    STATE.visitStop(st.id);
+    if (STATE.unlock('first-step')) { toastMsg('ACHIEVEMENT: FIRST STEP'); dingSound(620); }
     document.querySelector('#hud-chip .found').textContent = GAME.discovered.length + ' / 6 stops';
     st.navBtn.classList.add('on');
     stopDots[STATIONS.indexOf(st)].classList.add('on');
     if (GAME.discovered.length === 6) {
+      STATE.unlock('explorer');
+      STATE.unlock('full-tour');
+      STATE.setComplete();
       var secs = M.round((performance.now() - GAME.startTime) / 1000);
       document.getElementById('stat-time').textContent = M.floor(secs / 60) + ':' + ('0' + secs % 60).slice(-2);
       document.getElementById('stat-season').textContent = GAME.season.charAt(0).toUpperCase() + GAME.season.slice(1);
@@ -983,8 +1026,7 @@
     petTarget._petDone = true;
     toastMsg(prev ? (name === 'fox' ? 'The fox loves you' : 'The horse loves you') : 'You petted the ' + name + '!');
     dingSound(660);
-    if (petted.fox && petted.horse && !tryPet._ach) {
-      tryPet._ach = true;
+    if (petted.fox && petted.horse && STATE.unlock('animal-friend')) {
       setTimeout(function () { toastMsg('ACHIEVEMENT: ANIMAL FRIEND'); dingSound(880); }, 2400);
     }
   }
@@ -999,7 +1041,7 @@
   }
 
   /* ---------- collectible orbs ---------- */
-  var orbs = [], orbCount = 0;
+  var orbs = [], orbCount = STATE.orbCount();
   var ORB_SPOTS = [
     [0.5, 35.5], [-1.5, 28], [1.2, 24], [-0.8, 17], [0.9, 10.5], [-1.2, 4],
     [0.7, -3], [-1, -11], [0.8, -18], [-0.6, -26]
@@ -1007,13 +1049,15 @@
   function buildOrbs() {
     var geo = new THREE.IcosahedronGeometry(0.17, 1);
     var mat = new THREE.MeshStandardMaterial({ color: 0xffd98a, emissive: 0xe8b04b, emissiveIntensity: 1.5, roughness: 0.3 });
-    ORB_SPOTS.forEach(function (sp) {
+    ORB_SPOTS.forEach(function (sp, i) {
       var o = new THREE.Mesh(geo, mat);
       o.position.set(sp[0], W.terrainHeight(sp[0], sp[1]) + 0.55, sp[1]);
       o.userData.base = o.position.y;
+      if (STATE.hasOrb(i)) { o.visible = false; o.userData.got = true; }
       scene.add(o);
       orbs.push(o);
     });
+    orbLineEl.textContent = 'ORBS ' + orbCount + '/10';
   }
   var orbLineEl = document.getElementById('orbline');
   function tickOrbs(dt, t) {
@@ -1027,13 +1071,13 @@
       o.scale.setScalar(s2);
       if (M.abs(player.pos.x - o.position.x) < 1.3 && M.abs(player.pos.z - o.position.z) < 1.3) {
         o.visible = false; o.userData.got = true;
-        orbCount++;
+        STATE.grabOrb(i);
+        orbCount = STATE.orbCount();
         orbLineEl.textContent = 'ORBS ' + orbCount + '/10';
         toastMsg('ORB ' + orbCount + '/10');
         dingSound(520 + orbCount * 40);
-        if (orbCount === 10 && !tickOrbs._ach) {
-          tickOrbs._ach = true;
-          setTimeout(function () { toastMsg('ACHIEVEMENT: PATHFINDER'); dingSound(990); }, 2400);
+        if (orbCount === 10 && STATE.unlock('collector')) {
+          setTimeout(function () { toastMsg('ACHIEVEMENT: COLLECTOR'); dingSound(990); }, 2400);
         }
         continue;
       }
@@ -1240,6 +1284,7 @@
     }
     tickOrbs(dt, tSec);
     var nf = W.nightFactor();
+    if (nf > 0.5 && STATE.unlock('night-owl')) { toastMsg('ACHIEVEMENT: NIGHT OWL'); dingSound(740); }
     for (var li = 0; li < lamps.length; li++) {
       lamps[li].light.intensity = 0.55 + nf * 1.05;
       lamps[li].bulb.visible = nf > 0.08;
@@ -1303,6 +1348,18 @@
     GAME.state = 'menu';
     startBtn.disabled = false;
     startBtn.textContent = 'START WALKING';
+    markGroup('world', true);
+    markGroup('audio', true);
+    if (tipTimer) { clearInterval(tipTimer); tipTimer = null; }
+    // resume saved progress
+    GAME.discovered = STATE.data.stops.slice();
+    document.querySelector('#hud-chip .found').textContent = GAME.discovered.length + ' / 6 stops';
+    STATIONS.forEach(function (st, i) {
+      if (GAME.discovered.indexOf(st.id) >= 0) {
+        st.navBtn.classList.add('on');
+        stopDots[i].classList.add('on');
+      }
+    });
     loaderEl.style.opacity = '0';
     setTimeout(function () { loaderEl.style.display = 'none'; }, 750);
     menu.classList.add('on');
