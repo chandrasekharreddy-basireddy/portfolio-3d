@@ -384,16 +384,20 @@
             if (o.isMesh || o.isSkinnedMesh) { o.castShadow = W.HQ(); o.frustumCulled = false; }
           });
           var mixer = new THREE.AnimationMixer(obj);
+          var actions = {};
           if (g.animations && g.animations.length) {
             var clip = null;
-            g.animations.forEach(function (a) { if (!clip && a.name.indexOf(clipName) >= 0) clip = a; });
+            g.animations.forEach(function (a) {
+              actions[a.name.split('|')[0]] = mixer.clipAction(a);
+              if (!clip && a.name.indexOf(clipName) >= 0) clip = a;
+            });
             if (!clip) clip = g.animations[0];
             var act = mixer.clipAction(clip);
             act.play();
             act.setEffectiveTimeScale(speed);
           }
           scene.add(obj);
-          onReady({ obj: obj, mixer: mixer });
+          onReady({ obj: obj, mixer: mixer, actions: actions });
         } catch (e) { GAME.errors.push('animal: ' + e.message); onReady(null); }
       }, function (e) { GAME.errors.push('animal parse: ' + e); onReady(null); });
     } catch (e) { GAME.errors.push('animal: ' + e.message); onReady(null); }
@@ -401,7 +405,7 @@
 
   var playerRig = null, modelReady = false;
   var player = { pos: new THREE.Vector3(), yaw: PI, vel: 0, hSpeed: 0, lastMx: 0, lastMz: -1 };
-  var friendRig = null, anglerRig = null, npcs = [], foxRig = null, horseRig = null, flamingos = [];
+  var friendRig = null, anglerRig = null, npcs = [], foxRig = null, horseRig = null, flamingos = [], foxState = null;
   var lamps = [];
 
   function buildCharacters() {
@@ -485,6 +489,10 @@
     attachAnimal(ASSETS.fox, 0.0065, 'Walk', 1.0, function (r) {
       if (!r) return;
       foxRig = r;
+      for (var k4 in r.actions) {
+        r.actions[k4].play();
+        if (k4.indexOf('Walk') < 0) r.actions[k4].setEffectiveWeight(0);
+      }
       addInteract({ id: 'pet-fox', label: 'PET THE FOX', pos: r.obj.position, radius: 2.6, action: function () { petAnimal('fox'); } });
     });
     attachAnimal(ASSETS.horse, 0.005, 'horse', 0.85, function (r) {
@@ -502,7 +510,23 @@
   }
 
   /* ---------- wildlife park (new models) ---------- */
-  var WILD = { birds: [], flowers: [], wolf: null, peacock: null, monkey: null, toucan: null, statueRing: null };
+  var WILD = { birds: [], flowers: [], wolf: null, peacock: null, monkey: null, toucan: null, statueRing: null, fish: [] };
+  (function buildFish() {
+    var bodyGeo = new THREE.ConeGeometry(0.085, 0.32, 5);
+    var tailGeo = new THREE.PlaneGeometry(0.14, 0.11);
+    var cols = [0xc9884a, 0x7f9fb8, 0xb0c47f, 0xd8c07a, 0x8a7fb8];
+    for (var fi = 0; fi < 5; fi++) {
+      var mat = new THREE.MeshStandardMaterial({ color: cols[fi], roughness: 0.45, metalness: 0.35, side: THREE.DoubleSide });
+      var g = new THREE.Group();
+      var body = new THREE.Mesh(bodyGeo, mat);
+      body.rotation.x = PI / 2;
+      var tail = new THREE.Mesh(tailGeo, mat);
+      tail.position.z = 0.2;
+      g.add(body, tail);
+      scene.add(g);
+      WILD.fish.push({ grp: g, tail: tail, a: fi * 1.26, r: 2.3 + fi * 0.45, sp: 0.3 + (fi % 3) * 0.08, wob: fi * 1.7, dart: 4 + fi * 3 });
+    }
+  })();
   function loadGltf(key, cb) {
     try {
       gltfLoader.parse(ASSETS[key], '', function (g) { cb(g.scene); },
@@ -560,21 +584,23 @@
       scene.add(obj);
       WILD.toucan = obj;
     });
-    /* monkey on a rock by the trail */
-    var mx = 3.9, mz = 12.6, my = W.terrainHeight(mx, mz);
-    var rock = new THREE.Mesh(new THREE.DodecahedronGeometry(0.55, 0),
-      new THREE.MeshStandardMaterial({ color: 0x707a83, roughness: 1 }));
-    rock.position.set(mx, my + 0.3, mz);
-    rock.castShadow = W.HQ();
-    scene.add(rock);
+    /* monkey hopping between three rocks by the trail */
+    var rockGeo = new THREE.DodecahedronGeometry(0.55, 0);
+    var rockMat = new THREE.MeshStandardMaterial({ color: 0x707a83, roughness: 1 });
+    [{ x: 3.9, z: 12.6 }, { x: 5.3, z: 14.1 }, { x: 2.9, z: 14.7 }].forEach(function (s) {
+      var rk = new THREE.Mesh(rockGeo, rockMat);
+      rk.position.set(s.x, W.terrainHeight(s.x, s.z) + 0.3, s.z);
+      rk.castShadow = W.HQ();
+      scene.add(rk);
+    });
     loadGltf('monkey', function (obj) {
       if (!obj) return;
       obj.traverse(prepMesh);
       obj.scale.setScalar(0.95);
-      obj.position.set(mx, my + 0.6, mz);
+      obj.position.set(3.9, W.terrainHeight(3.9, 12.6) + 0.6, 12.6);
       obj.rotation.y = -PI * 0.35;
       scene.add(obj);
-      WILD.monkey = obj;
+      WILD.monkey = { obj: obj, at: 0, t: 2.5, hop: null };
     });
     /* birds flying wide circles above the valley */
     loadGltf('bird', function (obj) {
@@ -584,12 +610,12 @@
         { r: 34, h: 13.5, sp: 0.12, ph: 2.3, s: 2.1 },
         { r: 21, h: 8.2, sp: 0.2, ph: 4.1, s: 1.3 }
       ];
-      cfgs.forEach(function (c) {
+      cfgs.forEach(function (c, i2) {
         var b = obj.clone();
         b.traverse(prepMesh);
         b.scale.setScalar(c.s);
         scene.add(b);
-        WILD.birds.push({ obj: b, r: c.r, h: c.h, sp: c.sp, ph: c.ph });
+        WILD.birds.push({ obj: b, r: c.r, h: c.h, sp: c.sp, ph: c.ph, a: c.ph * 6, mode: 'soar', mt: 9, canLand: i2 === 0 });
       });
     });
     /* anemone flowers along the trail */
@@ -608,6 +634,9 @@
         f.rotation.y = rnd() * PI * 2;
         scene.add(f);
         WILD.flowers.push({ obj: f, ph: rnd() * PI * 2 });
+        if (WILD.flowers.length === n) {
+          try { W.setButterflyAnchors(WILD.flowers.map(function (fl2) { return { x: fl2.obj.position.x, z: fl2.obj.position.z }; })); } catch (e) {}
+        }
       }
     });
     /* wolf patrolling the far side with its real walk cycle */
@@ -672,18 +701,90 @@
     var midz = W.TRAIL_Z0 - W.TRAIL_LEN / 2;
     for (var b = 0; b < WILD.birds.length; b++) {
       var B = WILD.birds[b];
-      var a = tSec * B.sp + B.ph;
-      B.obj.position.set(M.cos(a) * B.r, B.h + M.sin(tSec * 0.9 + B.ph) * 0.8, midz + M.sin(a) * B.r * 0.85);
-      B.obj.rotation.y = -a - PI / 2;
-      B.obj.rotation.z = 0.18;
+      if (!B.mode) B.mode = 'fly';
+      if (B.mode === 'fly' || B.mode === 'soar') {
+        B.a += dt * B.sp;
+        var a = B.a;
+        B.obj.position.set(M.cos(a) * B.r, B.h + M.sin(tSec * 0.9 + B.ph) * 0.8, midz + M.sin(a) * B.r * 0.85);
+        B.obj.rotation.y = -a - PI / 2;
+        B.obj.rotation.z = 0.18;
+        if (B.canLand) {
+          B.mt -= dt;
+          if (B.mt <= 0) {
+            B.mode = 'land'; B.mt = 0;
+            var perches = [{ x: -9.5, z: 27.6 }, { x: 3.9, z: 12.9 }, { x: -4.6, z: 22.7 }];
+            B.perch = perches[M.floor(M.random() * perches.length)];
+            B.fx = B.obj.position.x; B.fy = B.obj.position.y; B.fz = B.obj.position.z;
+          }
+        }
+      } else if (B.mode === 'land') {
+        B.mt += dt;
+        var k2 = M.min(1, B.mt / 2.4);
+        var e2 = k2 * k2 * (3 - 2 * k2);
+        B.obj.position.set(
+          B.fx + (B.perch.x - B.fx) * e2,
+          B.fy + (W.terrainHeight(B.perch.x, B.perch.z) + 1.15 - B.fy) * e2,
+          B.fz + (B.perch.z - B.fz) * e2);
+        B.obj.rotation.z = 0.18 * (1 - e2);
+        if (k2 >= 1) { B.mode = 'perch'; B.mt = 6 + M.random() * 5; }
+      } else if (B.mode === 'perch') {
+        B.mt -= dt;
+        B.obj.position.y = W.terrainHeight(B.perch.x, B.perch.z) + 1.15 + M.sin(tSec * 2.6) * 0.015;
+        B.obj.rotation.y += M.sin(tSec * 0.8 + B.ph) * 0.003;
+        if (B.mt <= 0) {
+          B.mode = 'takeoff'; B.mt = 0;
+          B.fx = B.obj.position.x; B.fy = B.obj.position.y; B.fz = B.obj.position.z;
+        }
+      } else if (B.mode === 'takeoff') {
+        B.mt += dt;
+        var k3 = M.min(1, B.mt / 1.8);
+        var e3 = k3 * k3;
+        B.obj.position.set(B.fx + (M.cos(B.a) * B.r - B.fx) * e3, B.fy + (B.h - B.fy) * e3, B.fz + (midz + M.sin(B.a) * B.r * 0.85 - B.fz) * e3);
+        B.obj.rotation.z = 0.18 * k3;
+        if (k3 >= 1) { B.mode = 'fly'; B.mt = 14 + M.random() * 10; }
+      }
+    }
+    /* fish: swim laps in the pond, dart occasionally */
+    for (var fs = 0; fs < WILD.fish.length; fs++) {
+      var F2 = WILD.fish[fs];
+      F2.dart -= dt;
+      var burst = F2.dart < 0 && F2.dart > -1.1 ? 2.6 : 1;
+      if (F2.dart < -1.1) F2.dart = 5 + M.random() * 9;
+      F2.a += dt * F2.sp * burst;
+      var fr = F2.r + M.sin(tSec * 0.5 + F2.wob) * 0.5;
+      F2.grp.position.set(7.5 + M.cos(F2.a) * fr, -0.3 + M.sin(tSec * 0.8 + F2.wob) * 0.06, 2 + M.sin(F2.a) * fr * 0.86);
+      F2.grp.rotation.y = -F2.a + (F2.dart < 0 ? M.sin(tSec * 30) * 0.2 : 0);
+      F2.tail.rotation.y = M.sin(tSec * (burst > 1 ? 18 : 7) + F2.wob) * 0.5;
     }
     for (var fl = 0; fl < WILD.flowers.length; fl++) {
       var F = WILD.flowers[fl];
       F.obj.rotation.z = M.sin(tSec * 1.3 + F.ph) * 0.045;
     }
     if (WILD.monkey) {
-      WILD.monkey.rotation.z = M.sin(tSec * 1.15) * 0.035;
-      WILD.monkey.rotation.y = -PI * 0.35 + M.sin(tSec * 0.32) * 0.35;
+      var MK = WILD.monkey, mobj = MK.obj;
+      if (!MK.spots) {
+        MK.spots = [{ x: 3.9, z: 12.6 }, { x: 5.3, z: 14.1 }, { x: 2.9, z: 14.7 }].map(function (s) {
+          return { x: s.x, z: s.z, y: W.terrainHeight(s.x, s.z) + 0.6 };
+        });
+      }
+      if (MK.hop) {
+        MK.hop.k += dt / MK.hop.dur;
+        var hk = M.min(1, MK.hop.k);
+        mobj.position.x = MK.hop.fx + (MK.hop.tx - MK.hop.fx) * hk;
+        mobj.position.z = MK.hop.fz + (MK.hop.tz - MK.hop.fz) * hk;
+        mobj.position.y = MK.hop.fy + (MK.hop.ty - MK.hop.fy) * hk + M.sin(hk * PI) * 0.55;
+        mobj.rotation.y = M.atan2(MK.hop.tx - MK.hop.fx, MK.hop.tz - MK.hop.fz);
+        if (hk >= 1) { MK.at = MK.hop.to; MK.hop = null; MK.t = 3 + M.random() * 4; }
+      } else {
+        MK.t -= dt;
+        mobj.rotation.z = M.sin(tSec * 1.15) * 0.035;
+        mobj.rotation.y = -PI * 0.35 + M.sin(tSec * 0.32) * 0.35;
+        if (MK.t <= 0) {
+          var to = (MK.at + 1 + M.floor(M.random() * (MK.spots.length - 1))) % MK.spots.length;
+          var dst = MK.spots[to];
+          MK.hop = { fx: mobj.position.x, fy: mobj.position.y, fz: mobj.position.z, tx: dst.x, ty: dst.y, tz: dst.z, k: 0, dur: 0.5, to: to };
+        }
+      }
     }
     if (WILD.toucan) WILD.toucan.rotation.x = M.sin(tSec * 2.2) * 0.06;
     if (WILD.wolf) {
@@ -1861,20 +1962,41 @@
       if (anglerRig.bobber) anglerRig.bobber.position.y = anglerRig.bobber.userData.y0 + M.sin(tSec * 1.8) * 0.045;
     }
     if (foxRig) {
-      var fa = tSec * 0.35;
-      var fx = 1.5 + M.cos(fa) * 5.5, fz = -16 + M.sin(fa) * 4.5;
       var fd = player.pos.distanceTo(foxRig.obj.position);
-      if (walkMode && fd < 8 && fd > 1.3) {
-        var dx2 = player.pos.x - foxRig.obj.position.x, dz2 = player.pos.z - foxRig.obj.position.z;
+      if (!foxState) foxState = { mode: 'wander', t: 4 };
+      var fx = foxRig.obj.position.x, fz = foxRig.obj.position.z;
+      function foxPlay(name, ts) {
+        var acts = foxRig.actions || {};
+        for (var k3 in acts) {
+          var want = k3.indexOf(name) >= 0 ? 1 : 0;
+          var cur = acts[k3].getEffectiveWeight();
+          if (cur < 0.005 && want === 1) acts[k3].play();
+          acts[k3].setEffectiveWeight(cur + (want - cur) * M.min(1, dt * 4));
+        }
+        if (ts && acts[name]) acts[name].setEffectiveTimeScale(ts);
+      }
+      if (walkMode && fd < 8 && fd > 1.6) {
+        var dx2 = player.pos.x - fx, dz2 = player.pos.z - fz;
         var dl = M.sqrt(dx2 * dx2 + dz2 * dz2) || 1;
-        fx = foxRig.obj.position.x + (dx2 / dl) * 2.6 * dt;
-        fz = foxRig.obj.position.z + (dz2 / dl) * 2.6 * dt;
+        fx += (dx2 / dl) * 2.6 * dt; fz += (dz2 / dl) * 2.6 * dt;
         foxRig.obj.rotation.y = M.atan2(dx2, dz2);
-      } else if (walkMode && fd <= 1.3) {
-        fx = foxRig.obj.position.x; fz = foxRig.obj.position.z;
-        foxRig.obj.rotation.y = M.atan2(player.pos.x - fx, player.pos.z - fz);
+        foxPlay('Walk', 1);
+        foxState.t = 3 + M.random() * 3;
+      } else if (walkMode && fd <= 1.6) {
+        foxRig.obj.rotation.y = M.atan2(player.pos.x - fx, player.pos.z - fz) + M.sin(tSec * 0.7) * 0.4;
+        foxPlay('Survey', 0.9);
+      } else if (foxState.mode === 'wander') {
+        foxState.t -= dt;
+        foxState.a = (foxState.a || 0) + dt * 0.35;
+        if (foxState.t <= 0) { foxState.mode = 'idle'; foxState.t = 2.5 + M.random() * 3.5; }
+        fx = 1.5 + M.cos(foxState.a) * 5.5; fz = -16 + M.sin(foxState.a) * 4.5;
+        foxRig.obj.rotation.y = M.atan2(-M.sin(foxState.a) * 5.5, 0.0001) - PI / 2;
+        foxPlay('Walk', 1);
       } else {
-        foxRig.obj.rotation.y = M.atan2(-M.sin(fa) * 5.5, 0.0001) - PI / 2;
+        foxState.t -= dt;
+        foxRig.obj.rotation.y += M.sin(tSec * 0.5) * 0.004;
+        foxPlay('Survey', 0.8);
+        if (foxState.t <= 0) { foxState.mode = 'wander'; foxState.t = 4 + M.random() * 5; }
       }
       foxRig.obj.position.set(fx, W.terrainHeight(fx, fz), fz);
       if (!foxRig.blob) foxRig.blob = addBlob(foxRig.obj, 0.55 / foxRig.obj.scale.x, 0.025 / foxRig.obj.scale.x);

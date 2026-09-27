@@ -345,7 +345,7 @@
         cx: (M.random() - 0.5) * 30, cz: 20 - M.random() * 50,
         r: 1.2 + M.random() * 2.2, sp: 0.6 + M.random() * 0.7,
         ph: M.random() * 6.28, h: 0.7 + M.random() * 0.9,
-        wl: wl, wr: wr
+        wl: wl, wr: wr, anchors: null, ai: 0, tSwitch: 0
       };
       scene.add(grp);
       butterflies.push(grp);
@@ -836,6 +836,16 @@
     for (var i = 0; i < seasonCallbacks.length; i++) seasonCallbacks[i](name, d);
     AudioSys.setSeason(name);
   }
+  function setButterflyAnchors(anchorList) {
+    /* each butterfly claims one flower; they drift between them over time */
+    if (!anchorList || !anchorList.length) return;
+    butterflies.forEach(function (bf) {
+      bf.userData.anchors = anchorList;
+      bf.userData.ai = M.floor(M.random() * anchorList.length);
+      bf.userData.tSwitch = 2 + M.random() * 8;
+    });
+  }
+
   function tickSeason(dt, tSec) {
     if (SNt && SC.t < 1) {
       SC.t = M.min(1, SC.t + dt / 1.2);
@@ -957,7 +967,19 @@
       if (!bf.visible) continue;
       var u = bf.userData;
       var a = tSec * u.sp + u.ph;
-      bf.position.set(u.cx + M.cos(a) * u.r, u.h + M.sin(tSec * 2.2 + u.ph) * 0.25, u.cz + M.sin(a * 1.3) * u.r);
+      if (u.anchors && u.anchors.length) {
+        /* anchored: hovers around one flower, occasionally drifts to the next */
+        u.tSwitch -= dt;
+        if (u.tSwitch <= 0) { u.ai = M.floor(M.random() * u.anchors.length); u.tSwitch = 4 + M.random() * 6; u.cx = null; }
+        var tgt = u.anchors[u.ai];
+        if (u.cx === null || u.cx === undefined) { u.cx = bf.position.x; u.cz = bf.position.z; }
+        u.cx += (tgt.x - u.cx) * M.min(1, dt * 0.5);
+        u.cz += (tgt.z - u.cz) * M.min(1, dt * 0.5);
+        var rr = 0.28;
+        bf.position.set(u.cx + M.cos(a * 1.4) * rr, W.terrainHeight(u.cx, u.cz) + u.h * 0.55 + M.sin(tSec * 2.2 + u.ph) * 0.12, u.cz + M.sin(a * 1.4) * rr);
+      } else {
+        bf.position.set(u.cx + M.cos(a) * u.r, u.h + M.sin(tSec * 2.2 + u.ph) * 0.25, u.cz + M.sin(a * 1.3) * u.r);
+      }
       var flap = M.sin(tSec * 18 + u.ph) * 1.05;
       u.wl.rotation.y = flap;
       u.wr.rotation.y = -flap;
@@ -1160,7 +1182,7 @@
     init: init, scene: null, renderer: null, camera: null,
     hemi: null, sun: null, sunMesh: null,
     terrainHeight: terrainHeight, trailPos: trailPos, TRAIL_LEN: TRAIL_LEN, TRAIL_Z0: TRAIL_Z0,
-    SEASONS: SEASONS, applySeason: applySeason, tickSeason: tickSeason,
+    SEASONS: SEASONS, applySeason: applySeason, tickSeason: tickSeason, setButterflyAnchors: setButterflyAnchors,
     applyTime: applyTime, nightFactor: function () { return nightF; }, timeName: function () { return autoTime ? 'auto' : curTime; },
     setAutoTime: setAutoTime, hour: function () { return hourNow; },
     umbrella: function () { return umbrella; }, umbrellaOn: function () { return umbrellaOn; },
