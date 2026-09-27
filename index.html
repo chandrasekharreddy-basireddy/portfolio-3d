@@ -84,6 +84,7 @@
 </div>
 <div id="bubbles"></div>
 <div id="quest"><div class="q-tag">OBJECTIVE</div><div class="q-text" id="quest-text">Walk the trail</div></div>
+<div id="skillpop"><div class="sp-name">SKILL</div><div class="sp-desc"></div></div>
 <canvas id="minimap" width="128" height="230"></canvas>
 <div id="joy"><div id="joy-knob"></div></div>
 <div id="lbx-t"></div>
@@ -126,6 +127,7 @@
     <span class="chip">Next.js</span><span class="chip">TypeScript</span><span class="chip">Power BI</span><span class="chip">n8n</span>
   </div>
   <p class="small">Right now: practicing DSA in Python and C, and going deeper on backend work with FastAPI and PostgreSQL.</p>
+  <p class="small" id="skillcount">Skills discovered in the world: 0 / 14</p>
 </div>
 
 <div class="card" id="card-projects" aria-label="Projects">
@@ -159,6 +161,19 @@
   <p class="small" style="margin-top:16px">Made with Three.js. Everything on this page runs right in your browser.</p>
 </div>
 
+<div class="card" id="card-devroom" aria-label="Dev room">
+  <button class="x" aria-label="close">&times;</button>
+  <div class="no">SECRET // DEV ROOM</div>
+  <h2>How this world is built</h2>
+  <p>You found the hidden dev room. This whole site is one hand-built page — no game engine, no build step.</p>
+  <div class="row"><span class="k">Engine</span><span class="v">Three.js (WebGL), running entirely in the browser</span></div>
+  <div class="row"><span class="k">World</span><span class="v">Procedural terrain, water shader, waterfall, seasons and weather — all generated in code</span></div>
+  <div class="row"><span class="k">Characters</span><span class="v">Custom-built rigged models (the armor you're wearing included), animation clips hand-authored for this skeleton</span></div>
+  <div class="row"><span class="k">Audio</span><span class="v">Every sound — rain, wind, thunder, footsteps, the waterfall — is synthesized live with the Web Audio API. No audio files.</span></div>
+  <div class="row"><span class="k">Progress</span><span class="v">Orbs, stops and achievements persist in localStorage</span></div>
+  <p class="small">The rest of the experiments live on <a href="https://github.com/chandrasekharreddy-basireddy" target="_blank" rel="noopener">GitHub</a>.</p>
+</div>
+
 <div id="complete">
   <div class="panel">
     <div class="no">TRAIL COMPLETE</div>
@@ -189,6 +204,7 @@
 <script src="js/data.js"></script>
 <script src="js/state.js"></script>
 <script src="js/world.js"></script>
+<script src="js/places.js"></script>
 <script src="js/main.js"></script>
 </body>
 </html>

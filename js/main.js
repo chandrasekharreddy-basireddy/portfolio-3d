@@ -1582,6 +1582,7 @@
     }
     tickInteract();
     drawMinimap();
+    try { PLACES.tick(dt, tSec, player, GAME); } catch (e) {}
     for (var hi = hearts.length - 1; hi >= 0; hi--) {
       var hm2 = hearts[hi];
       hm2.userData.t += dt;
@@ -1670,6 +1671,8 @@
   loadAll(function () {
     buildCharacters();
     buildStations();
+    try { PLACES.build({ scene: scene, W: W, addInteract: addInteract, openCard: openCard, HQ: W.HQ, DATA: DATA, toast: toastMsg, player: player }); }
+    catch (e) { GAME.errors.push('places: ' + e.message); }
     buildOrbs();
     markGroup('world', true);
     markGroup('audio', true);

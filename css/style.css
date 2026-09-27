@@ -181,6 +181,12 @@ body { overscroll-behavior-y: none; }
 #toast { position: fixed; top: 84px; left: 50%; transform: translateX(-50%) translateY(-8px); z-index: 26; background: rgba(18,30,43,.94); border: 1px solid rgba(232,176,75,.5); border-left: 3px solid var(--amber); color: #eaf2f8; font-family: var(--hud); font-size: 12.5px; letter-spacing: 2px; text-transform: uppercase; padding: 10px 22px; border-radius: 2px; opacity: 0; transition: opacity .3s, transform .3s; pointer-events: none; white-space: nowrap; }
 #toast.on { opacity: 1; transform: translateX(-50%) translateY(0); }
 
+/* ---------- skill pop ---------- */
+#skillpop { position: fixed; bottom: 168px; left: 50%; transform: translateX(-50%) translateY(8px); z-index: 24; background: linear-gradient(180deg, rgba(14,24,34,.94), rgba(10,17,26,.94)); border: 1px solid rgba(111,208,138,.45); border-left: 3px solid #6fd08a; border-radius: 3px; padding: 10px 20px; max-width: min(420px, 86vw); opacity: 0; pointer-events: none; transition: opacity .3s, transform .3s; }
+#skillpop.on { opacity: 1; transform: translateX(-50%) translateY(0); }
+#skillpop .sp-name { font-family: var(--hud); font-size: 13px; letter-spacing: 3px; color: #6fd08a; text-transform: uppercase; }
+#skillpop .sp-desc { font-family: var(--hud); font-size: 11.5px; color: #c2d4e0; margin-top: 5px; line-height: 1.5; }
+
 /* ---------- quest + minimap ---------- */
 #quest { position: fixed; left: 16px; bottom: 16px; z-index: 20; display: none; max-width: min(300px, 42vw); background: linear-gradient(180deg, rgba(16,27,39,.88), rgba(11,19,28,.88)); border: 1px solid rgba(255,255,255,.14); border-left: 2px solid var(--amber); border-radius: 3px; padding: 10px 14px 11px; }
 #quest .q-tag { font-family: var(--hud); font-size: 9.5px; letter-spacing: 3px; color: var(--amber); text-transform: uppercase; }
