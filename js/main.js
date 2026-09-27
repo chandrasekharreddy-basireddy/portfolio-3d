@@ -24,22 +24,28 @@
     fox: 'https://raw.githubusercontent.com/KhronosGroup/glTF-Sample-Models/master/2.0/Fox/glTF-Binary/Fox.glb',
     horse: 'https://raw.githubusercontent.com/mrdoob/three.js/r128/examples/models/gltf/Horse.glb',
     flamingo: 'https://raw.githubusercontent.com/mrdoob/three.js/r128/examples/models/gltf/Flamingo.glb',
+    female: 'https://cdn.jsdelivr.net/gh/readyplayerme/visage@github-pages/public/female.glb',
+    maleb: 'https://cdn.jsdelivr.net/gh/readyplayerme/visage@github-pages/public/male.glb',
     clipsIdle: 'models/clips-idle.json',
     clipsWalk: 'models/clips-walk.json',
     clipsRun: 'models/clips-run.json',
-    photo: 'assets/profile.jpg'
+    photo: 'assets/profile.jpg',
+    face: 'assets/face.b64'
   };
-  var ASSETS = { avatar: null, fox: null, horse: null, flamingo: null, clips: null, photo: null };
-  var LOAD_TOTAL = 8, loadedCount = 0;
+  var ASSETS = { avatar: null, female: null, maleb: null, fox: null, horse: null, flamingo: null, clips: null, photo: null, face: null };
+  var LOAD_TOTAL = 11, loadedCount = 0;
   var loaders = [
     ['avatar', ASSET_URLS.avatar, 'loading the walker'],
     ['fox', ASSET_URLS.fox, 'waking the fox'],
     ['horse', ASSET_URLS.horse, 'leading out the horse'],
     ['flamingo', ASSET_URLS.flamingo, 'calling the flamingos'],
+    ['female', ASSET_URLS.female, 'meeting a friend'],
+    ['maleb', ASSET_URLS.maleb, 'greeting the angler'],
     ['clipsIdle', ASSET_URLS.clipsIdle, 'rehearsing movements'],
     ['clipsWalk', ASSET_URLS.clipsWalk, 'rehearsing movements'],
     ['clipsRun', ASSET_URLS.clipsRun, 'rehearsing movements'],
-    ['photo', ASSET_URLS.photo, 'framing the photo']
+    ['photo', ASSET_URLS.photo, 'framing the photo'],
+    ['face', ASSET_URLS.face, 'putting on a face']
   ];
   function loadAll(done) {
     loaders.forEach(function (item) {
@@ -53,6 +59,19 @@
           }
           step();
         });
+      } else if (key === 'face') {
+        var chunkUrls = [];
+        for (var fi = 1; fi <= 7; fi++) chunkUrls.push(url + '.' + fi);
+        Promise.all(chunkUrls.map(function (cu) { return fetch(cu).then(function (r) { return r.text(); }); }))
+          .then(function (txts) {
+            var bin = atob(txts.join(''));
+            var bytes = new Uint8Array(bin.length);
+            for (var fi2 = 0; fi2 < bin.length; fi2++) bytes[fi2] = bin.charCodeAt(fi2);
+            var blob2 = new Blob([bytes], { type: 'image/jpeg' });
+            new THREE.TextureLoader().load(URL.createObjectURL(blob2), function (t) {
+              t.flipY = false; t.encoding = THREE.sRGBEncoding; ASSETS.face = t; step();
+            });
+          });
       } else if (key === 'photo') {
         if (window.__PHOTO_URI) {
           new THREE.TextureLoader().load(window.__PHOTO_URI, function (t) {
@@ -235,7 +254,7 @@
   }
   function makeCharacter(opts, onReady) {
     try {
-      gltfLoader.parse(ASSETS.avatar, '', function (g) {
+      gltfLoader.parse(ASSETS[opts.src || 'avatar'], '', function (g) {
         try {
           var obj = g.scene;
           var mats = {};
@@ -252,6 +271,7 @@
               }
             }
           });
+          if (opts.keepOutfit) { opts.top = undefined; opts.bottom = undefined; }
           if (mats.top && opts.top !== undefined) mats.top.color.setHex(opts.top);
           if (mats.bottom && opts.bottom !== undefined) mats.bottom.color.setHex(opts.bottom);
           var mixer = new THREE.AnimationMixer(obj);
@@ -316,9 +336,17 @@
 
   function buildCharacters() {
     buildClips();
-    makeCharacter({ top: 0xffffff, bottom: 0xffffff }, function (r) {
+    makeCharacter({ src: 'maleb', keepOutfit: true }, function (r) {
       if (!r) return;
       playerRig = r;
+      r.obj.traverse(function (o) {
+        if (!o.isMesh) return;
+        if (o.name === 'Wolf3D_Facewear' || o.name === 'Wolf3D_Headwear') o.visible = false;
+        if (o.name === 'Wolf3D_Head' && ASSETS.face) {
+          o.material.map = ASSETS.face;
+          o.material.needsUpdate = true;
+        }
+      });
       r.obj.rotation.order = 'YXZ';
       r.obj.position.set(0, W.terrainHeight(0, 38) + 0.04, 38);
       r.obj.rotation.y = player.yaw + MODEL_FWD;
@@ -327,7 +355,7 @@
       GAME.model = r.obj;
       GAME.modelLoaded = true;
     });
-    makeCharacter({ top: 0x8a5f4a, bottom: 0x3d4652 }, function (r) {
+    makeCharacter({ src: 'female', keepOutfit: true }, function (r) {
       if (!r) return;
       friendRig = r;
       registerTalker(friendRig, 'friend');
@@ -348,9 +376,12 @@
         scene.add(r.obj);
       });
     });
-    makeCharacter({ top: 0x5d6b4f, bottom: 0x4a4034 }, function (r) {
+    makeCharacter({ src: 'maleb', top: 0xc9b48a, bottom: 0x707a86 }, function (r) {
       if (!r) return;
       anglerRig = r;
+      r.obj.traverse(function (o) {
+        if (o.isMesh && (o.name === 'Wolf3D_Facewear' || o.name === 'Wolf3D_Headwear')) o.visible = false;
+      });
       registerTalker(anglerRig, 'angler');
       var ax = 3.7, az = 6.4;
       r.obj.position.set(ax, W.terrainHeight(ax, az) + 0.04, az);
@@ -520,12 +551,54 @@
     soundBtn.textContent = soundOn ? 'SOUND ON' : 'SOUND OFF';
   };
 
-  startBtn.onclick = function () {
-    if (GAME.state !== 'menu') return;
+  var introT = 0, INTRO_LEN = 13;
+  var introCurve = new THREE.CatmullRomCurve3([
+    new THREE.Vector3(13.5, 9.5, 9.0),
+    new THREE.Vector3(7.5, 6.2, 2.0),
+    new THREE.Vector3(2.5, 5.2, 7.5),
+    new THREE.Vector3(-1.0, 4.6, 16.0),
+    new THREE.Vector3(-8.5, 4.4, 27.0),
+    new THREE.Vector3(-3.0, 4.0, 33.0),
+    new THREE.Vector3(0, 3.0, 41.0)
+  ]);
+  var introLook = new THREE.CatmullRomCurve3([
+    new THREE.Vector3(7.5, 0.5, 2.0),
+    new THREE.Vector3(7.5, 0.5, 2.0),
+    new THREE.Vector3(0, 1.2, 2.0),
+    new THREE.Vector3(0, 1.2, 8.0),
+    new THREE.Vector3(-8.5, 0.8, 27.0),
+    new THREE.Vector3(0, 1.2, 30.0),
+    new THREE.Vector3(0, 1.4, 37.0)
+  ]);
+  var skipBtn = document.getElementById('btn-skip');
+  function endIntro() {
+    if (GAME.state !== 'intro') return;
     GAME.state = 'playing';
     GAME.startTime = performance.now();
+    skipBtn.style.display = 'none';
+    document.getElementById('lbx-t').style.height = '0';
+    document.getElementById('lbx-b').style.height = '0';
+    document.getElementById('intro-title').style.display = 'none';
+    showHud();
+    camPos.copy(camera.position);
+    hint.style.display = 'block';
+    hint.textContent = '[ SCROLL TO WALK ]';
+    setTimeout(function () { hint.style.display = 'none'; }, 9000);
+    toastMsg('Welcome to the trail');
+  }
+  skipBtn.onclick = endIntro;
+  startBtn.onclick = function () {
+    if (GAME.state !== 'menu') return;
+    GAME.state = 'intro';
+    introT = 0;
+    document.getElementById('lbx-t').style.height = '11vh';
+    document.getElementById('lbx-b').style.height = '11vh';
+    document.getElementById('intro-title').style.display = 'block';
+    skipBtn.style.display = 'block';
     W.AudioSys.setEnabled(soundOn);
     menu.classList.remove('on');
+  };
+  function showHud() {
     hudChip.style.display = 'block';
     seasonsBar.style.display = 'flex';
     soundBtn.style.display = 'block';
@@ -533,12 +606,28 @@
     document.getElementById('btn-walk').style.display = 'block';
     navrail.style.display = 'flex';
     viewbtns.style.display = 'flex';
-    hint.style.display = 'block';
-    setTimeout(function () { hint.style.display = 'none'; }, 9000);
-  };
+  }
   document.getElementById('btn-explore').onclick = function () {
     completeEl.classList.remove('on');
   };
+
+  /* ---------- toasts ---------- */
+  var toastEl = document.getElementById('toast');
+  var toastQ = [], toastBusy = false;
+  function toastMsg(txt) {
+    toastQ.push(txt);
+    if (!toastBusy) nextToast();
+  }
+  function nextToast() {
+    if (!toastQ.length) { toastBusy = false; return; }
+    toastBusy = true;
+    toastEl.textContent = toastQ.shift();
+    toastEl.classList.add('on');
+    setTimeout(function () {
+      toastEl.classList.remove('on');
+      setTimeout(nextToast, 350);
+    }, 2100);
+  }
 
   function discover(st) {
     if (GAME.discovered.indexOf(st.id) >= 0) return;
@@ -622,12 +711,118 @@
   var last = performance.now(), tSec = 0, walkPhase = 0;
   var umbrella = W.umbrella();
 
+  var petBtn = document.getElementById('btn-pet');
+  var petTarget = null, hearts = [];
+  var heartTex = (function () {
+    var hc = document.createElement('canvas'); hc.width = hc.height = 64;
+    var hx = hc.getContext('2d');
+    hx.fillStyle = '#ff5f8a';
+    hx.beginPath();
+    hx.moveTo(32, 56);
+    hx.bezierCurveTo(2, 34, 8, 6, 32, 20);
+    hx.bezierCurveTo(56, 6, 62, 34, 32, 56);
+    hx.fill();
+    return new THREE.CanvasTexture(hc);
+  })();
+  function spawnHearts(pos) {
+    for (var i = 0; i < 5; i++) {
+      var hm = new THREE.Mesh(new THREE.PlaneGeometry(0.22, 0.22),
+        new THREE.MeshBasicMaterial({ map: heartTex, transparent: true, depthWrite: false }));
+      hm.position.set(pos.x + (M.random() - 0.5) * 0.5, pos.y + 1 + M.random() * 0.4, pos.z + (M.random() - 0.5) * 0.5);
+      hm.userData = { t: 0, vy: 0.7 + M.random() * 0.4, vx: (M.random() - 0.5) * 0.3 };
+      scene.add(hm);
+      hearts.push(hm);
+    }
+  }
+  var petted = { fox: false, horse: false };
+  function tryPet() {
+    if (!petTarget) return;
+    var name = petTarget === foxRig ? 'fox' : 'horse';
+    if (petTarget === foxRig) { spawnHearts(foxRig.obj.position); petted.fox = true; }
+    else { spawnHearts(horseRig.obj.position); petted.horse = true; }
+    var prev = petTarget._petDone;
+    petTarget._petDone = true;
+    toastMsg(prev ? (name === 'fox' ? 'The fox loves you' : 'The horse loves you') : 'You petted the ' + name + '!');
+    dingSound(660);
+    if (petted.fox && petted.horse && !tryPet._ach) {
+      tryPet._ach = true;
+      setTimeout(function () { toastMsg('ACHIEVEMENT: ANIMAL FRIEND'); dingSound(880); }, 2400);
+    }
+  }
+  petBtn.onclick = tryPet;
+  window.addEventListener('keydown', function (ev) {
+    if (ev.key.toLowerCase() === 'e' && petTarget && GAME.state === 'playing') tryPet();
+  });
+  function dingSound(freq) {
+    try {
+      W.AudioSys.ding(freq);
+    } catch (e) {}
+  }
+
+  /* ---------- collectible orbs ---------- */
+  var orbs = [], orbCount = 0;
+  var ORB_SPOTS = [
+    [0.5, 35.5], [-1.5, 28], [1.2, 24], [-0.8, 17], [0.9, 10.5], [-1.2, 4],
+    [0.7, -3], [-1, -11], [0.8, -18], [-0.6, -26]
+  ];
+  function buildOrbs() {
+    var geo = new THREE.IcosahedronGeometry(0.17, 1);
+    var mat = new THREE.MeshStandardMaterial({ color: 0xffd98a, emissive: 0xe8b04b, emissiveIntensity: 1.5, roughness: 0.3 });
+    ORB_SPOTS.forEach(function (sp) {
+      var o = new THREE.Mesh(geo, mat);
+      o.position.set(sp[0], W.terrainHeight(sp[0], sp[1]) + 0.55, sp[1]);
+      o.userData.base = o.position.y;
+      scene.add(o);
+      orbs.push(o);
+    });
+  }
+  var orbLineEl = document.getElementById('orbline');
+  function tickOrbs(dt, t) {
+    var collectedAll = true;
+    for (var i = 0; i < orbs.length; i++) {
+      var o = orbs[i];
+      if (!o.visible) { if (!o.userData.got) collectedAll = false; continue; }
+      o.rotation.y += dt * 2.2;
+      o.position.y = o.userData.base + M.sin(t * 2.4 + i) * 0.1;
+      var s2 = 1 + M.sin(t * 3 + i * 1.7) * 0.12;
+      o.scale.setScalar(s2);
+      if (M.abs(player.pos.x - o.position.x) < 1.3 && M.abs(player.pos.z - o.position.z) < 1.3) {
+        o.visible = false; o.userData.got = true;
+        orbCount++;
+        orbLineEl.textContent = 'ORBS ' + orbCount + '/10';
+        toastMsg('ORB ' + orbCount + '/10');
+        dingSound(520 + orbCount * 40);
+        if (orbCount === 10 && !tickOrbs._ach) {
+          tickOrbs._ach = true;
+          setTimeout(function () { toastMsg('ACHIEVEMENT: PATHFINDER'); dingSound(990); }, 2400);
+        }
+        continue;
+      }
+      if (!o.userData.got) collectedAll = false;
+    }
+  }
+
   function tick(now) {
     requestAnimationFrame(tick);
     var dt = M.min(0.05, (now - last) / 1000);
     last = now;
     tSec += dt;
     GAME.frames++;
+
+    if (GAME.state === 'intro') {
+      introT += dt;
+      var it = M.min(1, introT / INTRO_LEN);
+      var eIt = it * it * (3 - 2 * it);
+      introCurve.getPoint(eIt, tmpV);
+      camera.position.copy(tmpV);
+      introLook.getPoint(eIt, tmpV2);
+      camera.lookAt(tmpV2);
+      if (modelReady) playerRig.mixer.update(dt);
+      W.tickSeason(dt, tSec);
+      renderer.render(scene, camera);
+      if (introT >= INTRO_LEN) endIntro();
+      return;
+    }
 
     var om = 5.2, hSpeed;
     if (walkMode) {
@@ -642,13 +837,22 @@
         var nx = player.pos.x + mx * spd * dt;
         var nz = player.pos.z + mz * spd * dt;
         nx = clamp(nx, -13, 13); nz = clamp(nz, -43, 45);
-        function inPond(x, z) { var ddx = x - 7.5, ddz = z - 2; return ddx * ddx + ddz * ddz < 5.8 * 5.8; }
-        if (!inPond(nx, nz)) { player.pos.x = nx; player.pos.z = nz; }
-        else if (!inPond(nx, player.pos.z)) { player.pos.x = nx; }
-        else if (!inPond(player.pos.x, nz)) { player.pos.z = nz; }
+        var BR = W.bridge;
+        var onBridge = M.abs(nz - BR.z) < BR.half && nx > BR.x0 && nx < BR.x1;
+        function inWater(x, z) {
+          if (M.abs(z - BR.z) < BR.half + 0.4 && x > BR.x0 - 0.4 && x < BR.x1 + 0.4) return false;
+          var ddx = x - 7.5, ddz = z - 2;
+          return ddx * ddx + ddz * ddz < 5.4 * 5.4;
+        }
+        if (!inWater(nx, nz)) { player.pos.x = nx; player.pos.z = nz; }
+        else if (!inWater(nx, player.pos.z)) { player.pos.x = nx; }
+        else if (!inWater(player.pos.x, nz)) { player.pos.z = nz; }
         player.yaw = angLerp(player.yaw, M.atan2(-mx, -mz) - MODEL_FWD, M.min(1, dt * 8));
+        var nowBridge = M.abs(player.pos.z - BR.z) < BR.half && player.pos.x > BR.x0 && player.pos.x < BR.x1;
+        if (nowBridge) player.pos.y = M.max(W.terrainHeight(player.pos.x, player.pos.z), W.deckY(player.pos.x)) + 0.1;
       }
-      player.pos.y = W.terrainHeight(player.pos.x, player.pos.z) + 0.04;
+      if (!(M.abs(player.pos.z - W.bridge.z) < W.bridge.half && player.pos.x > W.bridge.x0 && player.pos.x < W.bridge.x1))
+        player.pos.y = W.terrainHeight(player.pos.x, player.pos.z) + 0.04;
       smoothP = clamp((W.TRAIL_Z0 - player.pos.z) / W.TRAIL_LEN, 0, 1);
       GAME.p = smoothP;
     } else {
@@ -776,6 +980,26 @@
       if (!foxRig.blob) foxRig.blob = addBlob(foxRig.obj, 0.55 / foxRig.obj.scale.x, 0.025 / foxRig.obj.scale.x);
       foxRig.mixer.update(dt);
     }
+    // petting proximity
+    petTarget = null;
+    if (walkMode && GAME.state === 'playing') {
+      if (foxRig && player.pos.distanceTo(foxRig.obj.position) < 2.6) petTarget = foxRig;
+      else if (horseRig && player.pos.distanceTo(horseRig.obj.position) < 3.2) petTarget = horseRig;
+    }
+    if (petTarget) {
+      petBtn.style.display = 'block';
+      petBtn.textContent = 'PET THE ' + (petTarget === foxRig ? 'FOX' : 'HORSE');
+    } else petBtn.style.display = 'none';
+    for (var hi = hearts.length - 1; hi >= 0; hi--) {
+      var hm2 = hearts[hi];
+      hm2.userData.t += dt;
+      hm2.position.y += hm2.userData.vy * dt;
+      hm2.position.x += hm2.userData.vx * dt;
+      hm2.rotation.y += dt * 2;
+      hm2.material.opacity = M.max(0, 1 - hm2.userData.t / 1.4);
+      if (hm2.userData.t > 1.4) { scene.remove(hm2); hearts.splice(hi, 1); }
+    }
+    tickOrbs(dt, tSec);
     var nf = W.nightFactor();
     for (var li = 0; li < lamps.length; li++) {
       lamps[li].light.intensity = 0.55 + nf * 1.05;
@@ -835,6 +1059,7 @@
   loadAll(function () {
     buildCharacters();
     buildStations();
+    buildOrbs();
     GAME.state = 'menu';
     startBtn.disabled = false;
     startBtn.textContent = 'START WALKING';
