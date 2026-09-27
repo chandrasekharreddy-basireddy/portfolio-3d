@@ -121,16 +121,21 @@
     { id: 'education', label: 'EDUCATION', p: 0.77 },
     { id: 'contact', label: 'CONTACT', p: 0.955 }
   ];
-  function makeBoardTexture(title, no) {
+  function makeBoardTexture(title, no, lines) {
     var c = document.createElement('canvas'); c.width = 512; c.height = 320;
     var x = c.getContext('2d');
     x.fillStyle = '#8a643c'; x.fillRect(0, 0, 512, 320);
     x.fillStyle = '#9c7448'; for (var i = 0; i < 7; i++) x.fillRect(0, i * 48 + 4, 512, 4);
     x.fillStyle = '#3a2a18'; x.fillRect(10, 10, 492, 300);
     x.fillStyle = '#e8b04b'; x.font = '600 60px Georgia'; x.textAlign = 'center';
-    x.fillText('0' + no, 256, 120);
+    x.fillText('0' + no, 256, lines ? 100 : 120);
     x.fillStyle = '#f2ead8'; x.font = '72px Georgia';
-    x.fillText(title, 256, 235);
+    x.fillText(title, 256, lines ? 212 : 235);
+    if (lines) {
+      x.font = 'italic 21px Georgia';
+      x.fillStyle = '#d8c9a3';
+      lines.forEach(function (ln, i) { x.fillText(ln, 256, 250 + i * 26); });
+    }
     var t = new THREE.CanvasTexture(c);
     t.anisotropy = 4;
     return t;
@@ -141,7 +146,7 @@
       var grp = new THREE.Group();
       var board = new THREE.Mesh(
         new THREE.BoxGeometry(3.4, 2.1, 0.16),
-        new THREE.MeshStandardMaterial({ map: makeBoardTexture(st.label, i + 1), roughness: 0.9 })
+        new THREE.MeshStandardMaterial({ map: makeBoardTexture(st.label, i + 1, st.id === 'projects' ? ['» Survival School', '» Signal-Lite', '» SaiU V2 — Student OS'] : null), roughness: 0.9 })
       );
       board.position.y = 2.5;
       board.castShadow = W.HQ();
