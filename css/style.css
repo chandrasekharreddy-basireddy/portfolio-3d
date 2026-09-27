@@ -51,6 +51,7 @@ body { overscroll-behavior-y: none; }
 #btn-sound:hover { color: #fff; border-color: rgba(255,255,255,.4); }
 #hint { position: fixed; bottom: 74px; left: 50%; transform: translateX(-50%); z-index: 20; color: #cfe0ec; background: rgba(13,22,32,.6); padding: 8px 18px; border-radius: 18px; font-size: 13px; display: none; pointer-events: none; white-space: nowrap; }
 #navrail { position: fixed; bottom: 16px; left: 50%; transform: translateX(-50%); z-index: 20; display: none; gap: 6px; flex-wrap: wrap; justify-content: center; max-width: 96vw; }
+#navrail.on { display: flex; }
 .nv { font-family: inherit; font-size: 12px; letter-spacing: 1px; color: #cfe0ec; background: rgba(13,22,32,.62); border: 1px solid rgba(255,255,255,.14); padding: 8px 14px; border-radius: 16px; cursor: pointer; transition: all .2s; backdrop-filter: blur(6px); }
 .nv:hover { border-color: rgba(255,255,255,.45); }
 .nv.on { background: #2f6b46; border-color: #43a068; color: #fff; }
@@ -89,15 +90,17 @@ body { overscroll-behavior-y: none; }
 #btn-explore:hover { box-shadow: 0 8px 24px rgba(232,176,75,.35); }
 
 @media (max-width: 700px) {
-  .card { top: auto; bottom: 86px; right: 10px; left: 10px; width: auto; max-height: 44vh; transform: translateY(30px); }
+  .card { top: auto; bottom: 94px; right: 10px; left: 10px; width: auto; max-height: 48vh; transform: translateY(30px); scrollbar-width: thin; overscroll-behavior: contain; }
   .card.open { transform: none; }
-  #hud-chip { font-size: 12px; padding: 8px 12px 10px; max-width: 56vw; }
+  #hud-chip { font-size: 12px; padding: 8px 12px 10px; max-width: 52vw; }
   #hud-chip .trailbar { width: 100%; }
-  #seasons { top: auto; bottom: 86px; right: 10px; flex-wrap: wrap; justify-content: flex-end; max-width: 60vw; }
-  #btn-sound { top: auto; bottom: 60px; right: 10px; }
-  #viewbtns { top: auto; bottom: 150px; right: 10px; transform: none; }
-  #navrail { bottom: 10px; }
-  #hint { bottom: 132px; }
+  #seasons { top: 14px; right: 10px; bottom: auto; flex-direction: column; flex-wrap: nowrap; justify-content: flex-end; max-width: none; }
+  .se-btn { font-size: 11px; padding: 6px 10px; min-width: 92px; text-align: center; box-sizing: border-box; }
+  #btn-sound { top: 146px; bottom: auto; right: 10px; font-size: 11px; padding: 6px 8px; min-width: 92px; box-sizing: border-box; text-align: center; border-radius: 14px; background: rgba(13,22,32,.58); border: 1px solid rgba(255,255,255,.14); color: #cfe0ec; }
+  #viewbtns { top: 50%; bottom: auto; right: 10px; transform: translateY(-50%); }
+  #navrail.on { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; bottom: 10px; left: 10px; transform: none; width: calc(100vw - 20px); }
+  .nv { text-align: center; font-size: 11px; padding: 9px 4px; letter-spacing: .5px; }
+  #hint { bottom: 96px; white-space: normal; text-align: center; max-width: 78vw; }
   #complete .panel { padding: 28px 22px; }
   #complete .stats { gap: 20px; }
 }
