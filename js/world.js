@@ -13,6 +13,7 @@
 
   var TRAIL_LEN = 71, TRAIL_Z0 = 38;
 
+  var LAKE = { x: 7.5, z: 2, r: 9, waterY: -0.15 };
   function terrainNoise(x, z) {
     var h = 0;
     h += M.sin(x * 0.14) * M.cos(z * 0.11) * 1.5;
@@ -20,6 +21,14 @@
     h *= 0.45;
     var dTrail = M.abs(x);
     if (dTrail < 6) h *= dTrail / 6;
+    // carve the lake basin (fades out near the walking trail)
+    var dxl = x - LAKE.x, dzl = z - LAKE.z, dl = M.sqrt(dxl * dxl + dzl * dzl);
+    if (dl < LAKE.r) {
+      var t = 1 - dl / LAKE.r;
+      var s = t * t * (3 - 2 * t);
+      var w = M.min(1, dTrail / 2.2);
+      h = h * (1 - s * w) + (-1.9 * s) * w;
+    }
     return h;
   }
   function terrainHeight(x, z) { return terrainNoise(x, z); }
@@ -47,9 +56,9 @@
     sun.position.set(18, 30, 10);
     if (HQ()) {
       sun.castShadow = true;
-      sun.shadow.mapSize.set(1024, 1024);
-      sun.shadow.camera.left = -24; sun.shadow.camera.right = 24;
-      sun.shadow.camera.top = 24; sun.shadow.camera.bottom = -24;
+      sun.shadow.mapSize.set(2048, 2048);
+      sun.shadow.camera.left = -27; sun.shadow.camera.right = 27;
+      sun.shadow.camera.top = 27; sun.shadow.camera.bottom = -27;
       sun.shadow.camera.far = 90; sun.shadow.bias = -0.002;
     }
     scene.add(sun); scene.add(sun.target);
@@ -66,6 +75,11 @@
     buildPond();
     buildVegetation();
     buildWeather();
+    buildScatter();
+    buildWaterfall();
+    buildBridge();
+    buildCampsite();
+    buildMountains();
 
     scene.fog = new THREE.Fog(0xbcd4e6, 60, 185);
     return { scene: scene, renderer: renderer, camera: camera };
@@ -233,11 +247,31 @@
         '}'
       ].join('\n')
     });
-    var pond = new THREE.Mesh(new THREE.CircleGeometry(5.0, 48), pondMat);
+    var pond = new THREE.Mesh(new THREE.CircleGeometry(5.2, 48), pondMat);
     pond.rotation.x = -PI / 2;
-    pond.position.set(7.5, 0.045, 2);
+    pond.position.set(LAKE.x, LAKE.waterY, LAKE.z);
+    pond.visible = !HQ();
     scene.add(pond);
+    // real reflective water on high quality
+    if (HQ()) {
+      new THREE.TextureLoader().load('https://raw.githubusercontent.com/mrdoob/three.js/r128/examples/textures/waternormals.jpg', function (nt) {
+        nt.wrapS = nt.wrapT = THREE.RepeatWrapping;
+        water = new THREE.Water(new THREE.PlaneGeometry(11.5, 11.5), {
+          textureWidth: 512, textureHeight: 512,
+          waterNormals: nt,
+          sunDirection: new THREE.Vector3(0.3, 0.9, 0.25).normalize(),
+          sunColor: 0xfff2dd, waterColor: 0x1e5666,
+          distortionScale: 1.7, fog: true
+        });
+        water.rotation.x = -PI / 2;
+        water.position.set(LAKE.x, LAKE.waterY, LAKE.z);
+        water.material.uniforms.size.value = 3.2;
+        scene.add(water);
+        window.WORLD.water = water;
+      });
+    }
   }
+  var water = null, waterBase = new THREE.Color(0x1e5666);
 
   /* ---------- vegetation ---------- */
   var treeMats, trees = [], bushes = [], flowers = [], butterflies = [];
@@ -255,7 +289,7 @@
       var ang = M.random() * PI * 2, rad = 7 + M.random() * 60;
       var x = M.cos(ang) * rad, z = TRAIL_Z0 - TRAIL_LEN / 2 + M.sin(ang) * rad * 0.95;
       if (M.abs(x) < 5.5) continue;
-      var px = x - 7.5, pz = z - 2; if (px * px + pz * pz < 8.5 * 8.5) continue;
+      var px = x - 7.5, pz = z - 2; if (px * px + pz * pz < 10.8 * 10.8) continue;
       var y = terrainNoise(x, z);
       var s = 0.8 + M.random() * 0.7;
       var tree = new THREE.Group();
@@ -280,6 +314,8 @@
       var ba = M.random() * PI * 2, brad = 4 + M.random() * 52;
       var bx = M.cos(ba) * brad, bz = M.sin(ba) * brad * 1.2 - 4;
       if (M.abs(bx) < 3.2) continue;
+      var blx = bx - 7.5, blz = bz - 2; if (blx * blx + blz * blz < 10.5 * 10.5) continue;
+      var bcx = bx + 8.5, bcz = bz - 27; if (bcx * bcx + bcz * bcz < 16) continue;
       var b = new THREE.Mesh(bushGeo, bushMat);
       b.position.set(bx, terrainNoise(bx, bz) + 0.18, bz);
       b.scale.setScalar(0.7 + M.random() * 0.8);
@@ -313,6 +349,359 @@
       scene.add(grp);
       butterflies.push(grp);
     }
+  }
+
+  /* ---------- rocks + grass scatter ---------- */
+  var rocks = [], grassMesh = null;
+  function buildScatter() {
+    var rockMat = new THREE.MeshStandardMaterial({ color: 0x8d8d90, roughness: 0.95, flatShading: true });
+    var rockGeo = new THREE.DodecahedronGeometry(1, 0);
+    var placed = 0, guard = 0;
+    while (placed < (HQ() ? 42 : 16) && guard < 900) {
+      guard++;
+      var rx = (M.random() - 0.5) * 44, rz = -40 + M.random() * 82;
+      if (M.abs(rx) < 3.6) continue;
+      var rlx = rx - LAKE.x, rlz = rz - LAKE.z; if (rlx * rlx + rlz * rlz < 118) continue;
+      var rcx = rx + 8.5, rcz = rz - 27; if (rcx * rcx + rcz * rcz < 22) continue;
+      var rock = new THREE.Mesh(rockGeo, rockMat);
+      var rs = 0.16 + M.random() * 0.62;
+      rock.scale.set(rs * (0.8 + M.random() * 0.5), rs * (0.55 + M.random() * 0.4), rs * (0.8 + M.random() * 0.5));
+      rock.position.set(rx, terrainHeight(rx, rz) + rs * 0.18, rz);
+      rock.rotation.set(M.random() * 0.4, M.random() * PI * 2, M.random() * 0.4);
+      rock.castShadow = HQ();
+      scene.add(rock); rocks.push(rock); placed++;
+    }
+    if (!HQ()) return;
+    // grass tufts (instanced)
+    var gc = document.createElement('canvas'); gc.width = 128; gc.height = 96;
+    var gx = gc.getContext('2d');
+    for (var bi = 0; bi < 9; bi++) {
+      var bx0 = 14 + bi * 12 + M.random() * 4, bh = 46 + M.random() * 42;
+      var grd = gx.createLinearGradient(0, 96, 0, 96 - bh);
+      var gcol = ['34,72,30', '48,90,36', '60,104,42'][bi % 3];
+      grd.addColorStop(0, 'rgba(' + gcol + ',1)');
+      grd.addColorStop(1, 'rgba(' + gcol + ',0)');
+      gx.fillStyle = grd;
+      gx.beginPath();
+      gx.moveTo(bx0, 96);
+      gx.quadraticCurveTo(bx0 + (M.random() * 14 - 7), 96 - bh * 0.6, bx0 + (M.random() * 20 - 10), 96 - bh);
+      gx.quadraticCurveTo(bx0 + (M.random() * 14 - 7), 96 - bh * 0.6, bx0 + 7, 96);
+      gx.fill();
+    }
+    var gTex = new THREE.CanvasTexture(gc);
+    var gMat = new THREE.MeshStandardMaterial({ map: gTex, transparent: true, alphaTest: 0.4, side: THREE.DoubleSide, roughness: 1 });
+    var gGeo = new THREE.PlaneGeometry(0.95, 0.6);
+    gGeo.translate(0, 0.3, 0);
+    var COUNT = 240;
+    grassMesh = new THREE.InstancedMesh(gGeo, gMat, COUNT);
+    var dummy = new THREE.Object3D();
+    var placedG = 0, guardG = 0;
+    while (placedG < COUNT && guardG < 3000) {
+      guardG++;
+      var gxz = (M.random() - 0.5) * 30, gzz = -36 + M.random() * 76;
+      if (M.abs(gxz) < 1.9) continue;
+      var glx = gxz - LAKE.x, glz = gzz - LAKE.z; if (glx * glx + glz * glz < 105) continue;
+      dummy.position.set(gxz, terrainHeight(gxz, gzz), gzz);
+      dummy.rotation.set(0, M.random() * PI, 0);
+      var gs2 = 0.7 + M.random() * 0.8;
+      dummy.scale.set(gs2, gs2 * (0.8 + M.random() * 0.5), gs2);
+      dummy.updateMatrix();
+      grassMesh.setMatrixAt(placedG, dummy.matrix);
+      placedG++;
+    }
+    grassMesh.count = placedG;
+    grassMesh.instanceMatrix.needsUpdate = true;
+    scene.add(grassMesh);
+  }
+
+  /* ---------- waterfall + cliffs on the lake's east rim ---------- */
+  var wfUniforms = null, mist = null;
+  function buildWaterfall() {
+    var cliffMat = new THREE.MeshStandardMaterial({ color: 0x7d7d85, roughness: 1, flatShading: true });
+    // natural boulder crag on the east rim
+    var boulders = [
+      [13.6, 1.9, 1.7, 2.0, 3.9, 1.9],
+      [14.6, 0.8, 1.5, 2.3, 3.2, 1.7],
+      [14.3, 3.2, 1.4, 1.9, 3.6, 1.6],
+      [13.9, 2.9, 1.2, 1.6, 3.0, 1.4],
+      [15.1, 2.1, 1.1, 1.5, 2.5, 1.3]
+    ];
+    for (var i = 0; i < boulders.length; i++) {
+      var b = boulders[i];
+      var blk = new THREE.Mesh(new THREE.DodecahedronGeometry(1, 0), cliffMat);
+      blk.scale.set(b[2], b[3], b[4]);
+      blk.position.set(b[0], terrainHeight(b[0], b[1]) + b[3] * 0.36, b[1]);
+      blk.rotation.set(0.15 + M.random() * 0.2, M.random() * PI * 2, (M.random() - 0.5) * 0.15);
+      blk.castShadow = blk.receiveShadow = HQ();
+      scene.add(blk);
+    }
+    // waterfall sheet, in front of the crag, dropping into the lake
+    wfUniforms = { uTime: { value: 0 } };
+    var wfMat = new THREE.ShaderMaterial({
+      transparent: true, depthWrite: false, side: THREE.DoubleSide,
+      uniforms: wfUniforms,
+      vertexShader: 'varying vec2 vUv; void main() { vUv = uv; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }',
+      fragmentShader: [
+        'uniform float uTime; varying vec2 vUv;',
+        'float hash(vec2 p) { return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }',
+        'void main() {',
+        '  float col1 = fract(vUv.y * 7.0 - uTime * 1.5 + hash(vec2(floor(vUv.x * 14.0), 1.0)) * 0.4);',
+        '  float col2 = fract(vUv.y * 3.0 - uTime * 2.2 + hash(vec2(3.0, floor(vUv.x * 9.0))) * 0.5);',
+        '  float body = 0.40 + 0.22 * sin(col1 * 6.2831) + 0.18 * (1.0 - vUv.y) + 0.12 * sin(col2 * 6.2831);',
+        '  float edge = smoothstep(0.0, 0.18, vUv.x) * smoothstep(1.0, 0.82, vUv.x);',
+        '  float foam = smoothstep(0.80, 1.0, vUv.y) * 0.85 + smoothstep(0.16, 0.0, vUv.y) * 0.75;',
+        '  float alpha = (body + foam * 0.85) * edge;',
+        '  vec3 col = mix(vec3(0.62, 0.78, 0.85), vec3(1.0), clamp(foam + 0.3, 0.0, 1.0));',
+        '  gl_FragColor = vec4(col, clamp(alpha, 0.25, 0.95));',
+        '}'
+      ].join('\n')
+    });
+    var wf = new THREE.Mesh(new THREE.PlaneGeometry(2.1, 4.7, 1, 12), wfMat);
+    wf.position.set(12.75, 1.75, 2);
+    wf.rotation.y = -PI / 2 + 0.05;
+    scene.add(wf);
+    // top lip foam
+    var lip = new THREE.Mesh(new THREE.SphereGeometry(0.16, 8, 6),
+      new THREE.MeshBasicMaterial({ color: 0xeef7fb, transparent: true, opacity: 0.85 }));
+    lip.scale.set(6.5, 0.55, 1.0);
+    lip.position.set(12.72, 4.05, 2);
+    scene.add(lip);
+    // splash rings on the water
+    var ringMat = new THREE.MeshBasicMaterial({ color: 0xdff2f8, transparent: true, opacity: 0.5, depthWrite: false });
+    for (var ri = 0; ri < 3; ri++) {
+      var ring = new THREE.Mesh(new THREE.RingGeometry(0.5, 0.62 + ri * 0.12, 26), ringMat.clone());
+      ring.rotation.x = -PI / 2;
+      ring.position.set(12.25, LAKE.waterY + 0.02 + ri * 0.005, 2);
+      ring.userData.ph = ri * 2.1;
+      scene.add(ring);
+      splashRings.push(ring);
+    }
+    // rising mist
+    var mn = 26, mpos = new Float32Array(mn * 3);
+    for (var mi = 0; mi < mn; mi++) {
+      mpos[mi * 3] = (M.random() - 0.5) * 1.8; mpos[mi * 3 + 1] = M.random() * 3; mpos[mi * 3 + 2] = (M.random() - 0.5) * 1.2;
+    }
+    var mg = new THREE.BufferGeometry();
+    mg.setAttribute('position', new THREE.BufferAttribute(mpos, 3));
+    mist = new THREE.Points(mg, new THREE.PointsMaterial({ color: 0xeef6fa, size: 0.34, transparent: true, opacity: 0.28, depthWrite: false }));
+    mist.position.set(12.5, LAKE.waterY + 0.15, 2);
+    scene.add(mist);
+  }
+  var splashRings = [];
+
+  /* ---------- wooden bridge over the lake ---------- */
+  var bridge = { x0: 1.8, x1: 12.7, z: 2, half: 0.85 };
+  function deckY(x) {
+    var t = clamp((x - bridge.x0) / (bridge.x1 - bridge.x0), 0, 1);
+    var ground = terrainNoise(x, bridge.z) + 0.16;
+    var arc = LAKE.waterY + 0.72 + 1.15 * M.sin(PI * t);
+    var d = ground - arc;
+    return (ground + arc + M.sqrt(d * d + 0.16)) / 2;
+  }
+  function buildBridge() {
+    var wood = new THREE.MeshStandardMaterial({ color: 0x7a5a38, roughness: 0.9 });
+    var woodD = new THREE.MeshStandardMaterial({ color: 0x63472c, roughness: 0.95 });
+    var g = new THREE.Group();
+    var segs = 24;
+    for (var i = 0; i <= segs; i++) {
+      var t = i / segs;
+      var x = bridge.x0 + (bridge.x1 - bridge.x0) * t;
+      var y = deckY(x);
+      var plank = new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.09, 1.9), (i % 2 ? wood : woodD));
+      plank.position.set(x, y, bridge.z);
+      plank.rotation.z = -M.atan((deckY(M.min(bridge.x1, x + 0.45)) - deckY(M.max(bridge.x0, x - 0.45))) / 0.9);
+      plank.castShadow = plank.receiveShadow = HQ();
+      g.add(plank);
+      if (i % 3 === 0) {
+        for (var s2 = -1; s2 <= 1; s2 += 2) {
+          var post = new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.06, 0.72, 6), wood);
+          post.position.set(x, y + 0.36, bridge.z + s2 * 0.88);
+          g.add(post);
+        }
+      }
+    }
+    // rails
+    for (var rs = -1; rs <= 1; rs += 2) {
+      var railGeo = [];
+      for (var i2 = 0; i2 <= 24; i2++) {
+        var x2 = bridge.x0 + (bridge.x1 - bridge.x0) * (i2 / 24);
+        railGeo.push(new THREE.Vector3(x2, deckY(x2) + 0.66, bridge.z + rs * 0.88));
+      }
+      var rail = new THREE.Mesh(new THREE.TubeGeometry(new THREE.CatmullRomCurve3(railGeo), 24, 0.045, 6), wood);
+      rail.castShadow = HQ();
+      g.add(rail);
+    }
+    // support posts down into the water
+    for (var sp = 0; sp < 3; sp++) {
+      var sx = 4.2 + sp * 3.3;
+      for (var s3 = -1; s3 <= 1; s3 += 2) {
+        var leg = new THREE.Mesh(new THREE.CylinderGeometry(0.08, 0.1, 3.4, 6), woodD);
+        leg.position.set(sx, deckY(sx) - 1.5, bridge.z + s3 * 0.8);
+        g.add(leg);
+      }
+    }
+    scene.add(g);
+    window.WORLD.bridge = bridge;
+    window.WORLD.deckY = deckY;
+  }
+
+  /* ---------- campsite with campfire ---------- */
+  var campfire = null;
+  function buildCampsite() {
+    var cx = -8.5, cz = 27;
+    var g = new THREE.Group();
+    var tentMat1 = new THREE.MeshStandardMaterial({ color: 0xc46a3a, roughness: 0.95, side: THREE.DoubleSide });
+    var tentMat2 = new THREE.MeshStandardMaterial({ color: 0x3a7a8c, roughness: 0.95, side: THREE.DoubleSide });
+    function tent(x, z, ry, mat) {
+      var t = new THREE.Group();
+      var side1 = new THREE.Mesh(new THREE.PlaneGeometry(2.3, 1.7), mat);
+      side1.position.set(0, 0.62, 0.6); side1.rotation.x = 0.42;
+      var side2 = new THREE.Mesh(new THREE.PlaneGeometry(2.3, 1.7), mat);
+      side2.position.set(0, 0.62, -0.6); side2.rotation.x = -0.42;
+      var back = new THREE.Mesh(new THREE.PlaneGeometry(1.05, 1.15), new THREE.MeshStandardMaterial({ color: 0x6b4d33, roughness: 1, side: THREE.DoubleSide }));
+      back.position.set(-1.12, 0.5, 0); back.rotation.y = -PI / 2;
+      t.add(side1, side2, back);
+      t.position.set(x, terrainHeight(x, z), z);
+      t.rotation.y = ry;
+      t.traverse(function (o) { if (o.isMesh) { o.castShadow = HQ(); } });
+      return t;
+    }
+    g.add(tent(cx - 1.9, cz - 0.4, 0.5, tentMat1));
+    g.add(tent(cx + 1.2, cz + 1.9, -2.2, tentMat2));
+    // fire pit
+    var stoneMat = new THREE.MeshStandardMaterial({ color: 0x8d8d90, roughness: 1, flatShading: true });
+    for (var i = 0; i < 9; i++) {
+      var a = (i / 9) * PI * 2;
+      var st = new THREE.Mesh(new THREE.DodecahedronGeometry(0.14, 0), stoneMat);
+      st.position.set(cx + M.cos(a) * 0.62, terrainHeight(cx, cz) + 0.06, cz + M.sin(a) * 0.62);
+      st.rotation.set(M.random(), M.random(), M.random());
+      st.castShadow = HQ();
+      g.add(st);
+    }
+    var logMat = new THREE.MeshStandardMaterial({ color: 0x5c4128, roughness: 1 });
+    for (var l2 = 0; l2 < 3; l2++) {
+      var log = new THREE.Mesh(new THREE.CylinderGeometry(0.09, 0.11, 1.5, 7), logMat);
+      var la = (l2 / 3) * PI;
+      log.position.set(cx + M.cos(la) * 0.28, terrainHeight(cx, cz) + 0.1, cz + M.sin(la) * 0.28);
+      log.rotation.set(PI / 2 - 0.25, la, 0);
+      log.castShadow = HQ();
+      g.add(log);
+      // seat logs
+      var seat = new THREE.Mesh(new THREE.CylinderGeometry(0.17, 0.17, 1.5, 7), logMat);
+      var sa = 1.1 + l2 * 1.9;
+      seat.position.set(cx + M.cos(sa) * 1.5, terrainHeight(cx + M.cos(sa) * 1.5, cz + M.sin(sa) * 1.5) + 0.17, cz + M.sin(sa) * 1.5);
+      seat.rotation.z = PI / 2;
+      seat.rotation.y = sa;
+      seat.castShadow = HQ();
+      g.add(seat);
+    }
+    // flames (two crossed additive sprites)
+    function flameTex() {
+      var fc = document.createElement('canvas'); fc.width = 64; fc.height = 96;
+      var fx = fc.getContext('2d');
+      var fg = fx.createRadialGradient(32, 78, 4, 32, 60, 60);
+      fg.addColorStop(0, 'rgba(255,190,80,1)');
+      fg.addColorStop(0.35, 'rgba(255,120,30,0.85)');
+      fg.addColorStop(0.75, 'rgba(200,60,10,0.35)');
+      fg.addColorStop(1, 'rgba(120,20,0,0)');
+      fx.fillStyle = fg;
+      fx.beginPath(); fx.moveTo(32, 4);
+      fx.quadraticCurveTo(58, 60, 44, 88); fx.quadraticCurveTo(32, 96, 20, 88); fx.quadraticCurveTo(6, 60, 32, 4);
+      fx.fill();
+      return new THREE.CanvasTexture(fc);
+    }
+    var ft = flameTex();
+    var f1 = new THREE.Mesh(new THREE.PlaneGeometry(0.75, 1.05), new THREE.MeshBasicMaterial({ map: ft, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending }));
+    f1.position.set(cx, terrainHeight(cx, cz) + 0.6, cz);
+    var f2 = f1.clone();
+    f2.rotation.y = PI / 2; f2.scale.set(0.75, 0.8, 1); f2.position.y += 0.05;
+    g.add(f1, f2);
+    var light = new THREE.PointLight(0xff8c3a, 1.2, 11, 2);
+    light.position.set(cx, terrainHeight(cx, cz) + 0.9, cz);
+    g.add(light);
+    // smoke
+    var sn = 14, spos = new Float32Array(sn * 3);
+    for (var si3 = 0; si3 < sn; si3++) {
+      spos[si3 * 3] = (M.random() - 0.5) * 0.2; spos[si3 * 3 + 1] = M.random() * 4; spos[si3 * 3 + 2] = (M.random() - 0.5) * 0.2;
+    }
+    var sg = new THREE.BufferGeometry();
+    sg.setAttribute('position', new THREE.BufferAttribute(spos, 3));
+    var smoke = new THREE.Points(sg, new THREE.PointsMaterial({ color: 0x9a9a9a, size: 0.3, transparent: true, opacity: 0.32, depthWrite: false }));
+    smoke.position.set(cx, terrainHeight(cx, cz) + 1, cz);
+    g.add(smoke);
+    scene.add(g);
+    campfire = { light: light, f1: f1, f2: f2, smoke: smoke };
+    window.WORLD.campfire = campfire;
+  }
+
+  /* ---------- real mountain range + foothills + treeline ---------- */
+  function buildMountains() {
+    var c = new THREE.Color();
+    function ridge(cx, cz, h, br, hue, sat, lit, snow) {
+      var geo = new THREE.ConeGeometry(br, h, 8, 7);
+      geo.translate(0, h / 2, 0);
+      var pos = geo.attributes.position;
+      var colors = new Float32Array(pos.count * 3);
+      var rock = new THREE.Color().setHSL(hue, sat, lit);
+      var rockD = rock.clone().multiplyScalar(0.72);
+      var snowC = new THREE.Color(0xf2f6fa);
+      var snowLine = h * (0.46 + M.random() * 0.14);
+      for (var vi = 0; vi < pos.count; vi++) {
+        var vx = pos.getX(vi), vy = pos.getY(vi), vz = pos.getZ(vi);
+        var k = M.max(0, 1 - vy / h);
+        var d = M.sin(vx * 0.33 + vz * 0.21) + M.sin(vz * 0.41 + 1.7) + M.sin((vx + vz) * 0.24 + 3.1) + M.sin((vx - vz) * 0.55);
+        var amp = (0.05 + 0.16 * k) * br * 0.55;
+        var rl = M.sqrt(vx * vx + vz * vz) || 1;
+        var target = br + amp * d * 0.35;
+        pos.setX(vi, vx * (target / rl));
+        pos.setZ(vi, vz * (target / rl));
+        pos.setY(vi, vy + M.sin(vx * 0.5 + vz * 0.37) * k * br * 0.07);
+        c.copy(rock).lerp(rockD, (M.sin(vx * 0.19 + vz * 0.23) + 1) / 2);
+        if (snow && vy > snowLine + M.sin(vx * 0.35 + vz * 0.3) * h * 0.04) c.lerp(snowC, clamp((vy - snowLine) / (h * 0.1), 0, 1));
+        colors[vi * 3] = c.r; colors[vi * 3 + 1] = c.g; colors[vi * 3 + 2] = c.b;
+      }
+      geo.setAttribute('color', new THREE.BufferAttribute(colors, 3));
+      geo.computeVertexNormals();
+      var m = new THREE.Mesh(geo, new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 1, flatShading: true }));
+      m.position.set(cx, -2.5, cz);
+      m.rotation.y = M.random() * PI * 2;
+      scene.add(m);
+      return m;
+    }
+    // big peaks around the horizon (lower toward the sun in the south-east)
+    for (var i = 0; i < 15; i++) {
+      var ang = (i / 15) * PI * 2 + M.random() * 0.2;
+      var south = M.sin(ang) > 0.15;
+      var h = (south ? 18 : 34) + M.random() * (south ? 16 : 44);
+      var rad = 148 + M.random() * 42;
+      ridge(M.cos(ang) * rad, 2 + M.sin(ang) * rad * 0.9, h, h * (0.52 + M.random() * 0.2),
+        0.58 + M.random() * 0.04, 0.10 + M.random() * 0.05, 0.33 + M.random() * 0.07, true);
+    }
+    // foothills
+    for (var f = 0; f < 12; f++) {
+      var fa = M.random() * PI * 2;
+      var frad = 104 + M.random() * 28;
+      ridge(M.cos(fa) * frad, 2 + M.sin(fa) * frad * 0.9, 5 + M.random() * 10, 9 + M.random() * 11,
+        0.34 + M.random() * 0.05, 0.16 + M.random() * 0.08, 0.22 + M.random() * 0.07, false);
+    }
+    // distant treeline on the foothills
+    var treeGeo = new THREE.ConeGeometry(1.6, 4.2, 6);
+    var treeMat = new THREE.MeshStandardMaterial({ color: 0x2c4a30, roughness: 1, flatShading: true });
+    var COUNT = HQ() ? 170 : 60;
+    var tline = new THREE.InstancedMesh(treeGeo, treeMat, COUNT);
+    var dummy = new THREE.Object3D();
+    for (var t2 = 0; t2 < COUNT; t2++) {
+      var ta = M.random() * PI * 2;
+      var tr = 88 + M.random() * 40;
+      var tx = M.cos(ta) * tr, tz = 2 + M.sin(ta) * tr * 0.9;
+      dummy.position.set(tx, 2.5 + M.random() * 3, tz);
+      var ts = 0.8 + M.random() * 1.5;
+      dummy.scale.set(ts, ts * (0.9 + M.random() * 0.5), ts);
+      dummy.rotation.y = M.random() * PI;
+      dummy.updateMatrix();
+      tline.setMatrixAt(t2, dummy.matrix);
+    }
+    scene.add(tline);
   }
 
   /* ---------- weather ---------- */
@@ -350,10 +739,10 @@
 
   /* ---------- seasons ---------- */
   var SEASONS = {
-    summer:  { top: 0x5f9bd4, bot: 0xcfe4ee, fog: 0xbcd4e6, fogN: 60, fogF: 190, hemi: 0.85, sunI: 1.15, terr: 0xffffff, leaf: 0x4d7a35, path: 0xc9b48a, waterA: 0x3f7f9e, waterB: 0x7ec2d6, flowers: true, butterflies: true, rain: 0, snow: 0, sunOp: 0.95, lightning: false, umbrella: false, cloud: 0xffffff, top_tint: 0xffffff, bottom_tint: 0xffffff, rainAudio: 0, windAudio: 0.05 },
-    rainy:   { top: 0x5c7085, bot: 0x9fb0ba, fog: 0x8d9dad, fogN: 30, fogF: 130, hemi: 0.72, sunI: 0.55, terr: 0xb9c9bb, leaf: 0x47703a, path: 0xb8a583, waterA: 0x3a6f8a, waterB: 0x6fa9c2, flowers: true, butterflies: false, rain: 260, snow: 0, sunOp: 0, lightning: false, umbrella: true, cloud: 0xb6c2cb, top_tint: 0x9db4c8, bottom_tint: 0x8d99a8, rainAudio: 0.16, windAudio: 0.1 },
-    monsoon: { top: 0x46586b, bot: 0x8a98a2, fog: 0x74858f, fogN: 20, fogF: 95, hemi: 0.6, sunI: 0.38, terr: 0x9fb3a0, leaf: 0x3f6a3c, path: 0xa99879, waterA: 0x2f5f78, waterB: 0x5f95ae, flowers: true, butterflies: false, rain: 470, snow: 0, sunOp: 0, lightning: true, umbrella: true, cloud: 0x84929d, top_tint: 0x86a89a, bottom_tint: 0x7d8a95, rainAudio: 0.3, windAudio: 0.16 },
-    winter:  { top: 0x93aaba, bot: 0xd8e2e8, fog: 0xc6d2dc, fogN: 40, fogF: 155, hemi: 0.8, sunI: 0.75, terr: 0xe2e8ea, leaf: 0x9fb4a8, path: 0xd9d3c6, waterA: 0x5b7d94, waterB: 0x9fc4d4, flowers: false, butterflies: false, rain: 0, snow: 320, sunOp: 0.75, lightning: false, umbrella: false, cloud: 0xf2f5f8, top_tint: 0xb9c6d8, bottom_tint: 0xa8b2c0, rainAudio: 0, windAudio: 0.12 }
+    summer:  { top: 0x5f9bd4, bot: 0xcfe4ee, fog: 0xbcd4e6, fogN: 70, fogF: 340, hemi: 0.85, sunI: 1.15, terr: 0xffffff, leaf: 0x4d7a35, path: 0xc9b48a, waterA: 0x3f7f9e, waterB: 0x7ec2d6, flowers: true, butterflies: true, rain: 0, snow: 0, sunOp: 0.95, lightning: false, umbrella: false, cloud: 0xffffff, top_tint: 0xffffff, bottom_tint: 0xffffff, rainAudio: 0, windAudio: 0.05 },
+    rainy:   { top: 0x5c7085, bot: 0x9fb0ba, fog: 0x8d9dad, fogN: 30, fogF: 240, hemi: 0.72, sunI: 0.55, terr: 0xb9c9bb, leaf: 0x47703a, path: 0xb8a583, waterA: 0x3a6f8a, waterB: 0x6fa9c2, flowers: true, butterflies: false, rain: 260, snow: 0, sunOp: 0, lightning: false, umbrella: true, cloud: 0xb6c2cb, top_tint: 0x9db4c8, bottom_tint: 0x8d99a8, rainAudio: 0.16, windAudio: 0.1 },
+    monsoon: { top: 0x46586b, bot: 0x8a98a2, fog: 0x74858f, fogN: 20, fogF: 175, hemi: 0.6, sunI: 0.38, terr: 0x9fb3a0, leaf: 0x3f6a3c, path: 0xa99879, waterA: 0x2f5f78, waterB: 0x5f95ae, flowers: true, butterflies: false, rain: 470, snow: 0, sunOp: 0, lightning: true, umbrella: true, cloud: 0x84929d, top_tint: 0x86a89a, bottom_tint: 0x7d8a95, rainAudio: 0.3, windAudio: 0.16 },
+    winter:  { top: 0x93aaba, bot: 0xd8e2e8, fog: 0xc6d2dc, fogN: 40, fogF: 320, hemi: 0.8, sunI: 0.75, terr: 0xe2e8ea, leaf: 0x9fb4a8, path: 0xd9d3c6, waterA: 0x5b7d94, waterB: 0x9fc4d4, flowers: false, butterflies: false, rain: 0, snow: 320, sunOp: 0.75, lightning: false, umbrella: false, cloud: 0xf2f5f8, top_tint: 0xb9c6d8, bottom_tint: 0xa8b2c0, rainAudio: 0, windAudio: 0.12 }
   };
   var curSeason = 'summer';
   var SNt = null, SC = { t: 1 };
@@ -420,6 +809,11 @@
       sunMesh.material.opacity = lerp(sunMesh.material.opacity, SNt.sunOp, e);
       sunHalo.material.opacity = lerp(sunHalo.material.opacity, SNt.sunOp * 0.24, e);
     }
+    if (water) {
+      var dS = SEASONS[curSeason];
+      waterBase.setHex(dS.waterA).multiplyScalar(0.55).lerp(new THREE.Color(0x134252), 0.35);
+      water.material.uniforms.waterColor.value.copy(waterBase).multiplyScalar(1 - nightF * 0.7);
+    }
     nightF = lerp(nightF, TIMES[curTime].night, M.min(1, dt / 2.2));
     renderer.toneMappingExposure = lerp(renderer.toneMappingExposure, TIMES[curTime].exp, M.min(1, dt / 1.5));
     if (stars) { stars.material.opacity = nightF * 0.9; stars.visible = nightF > 0.02; }
@@ -468,12 +862,46 @@
       }
       hemi.intensity = flashT > 0.1 ? 1.7 : SEASONS.monsoon.hemi;
     }
+    for (var sri = 0; sri < splashRings.length; sri++) {
+      var sr = splashRings[sri];
+      var sph = (tSec * 0.5 + sr.userData.ph) % 2;
+      sr.scale.setScalar(0.6 + sph * 0.9);
+      sr.material.opacity = 0.45 * (1 - sph / 2);
+    }
     for (var c2 = 0; c2 < clouds.length; c2++) {
       var cl = clouds[c2];
       cl.position.x += cl.userData.speed * dt;
       if (cl.position.x > 120) cl.position.x = -120;
     }
     pondUniforms.uTime.value = tSec;
+    if (water) water.material.uniforms.time.value += dt * 0.55;
+    if (wfUniforms) {
+      wfUniforms.uTime.value = tSec;
+      if (mist) {
+        var mp = mist.geometry.attributes.position;
+        for (var mi = 0; mi < mp.count; mi++) {
+          var my = mp.getY(mi) + dt * 0.55;
+          if (my > 3.4) { my = 0.2; mp.setX(mi, (M.random() - 0.5) * 1.8); }
+          mp.setY(mi, my);
+        }
+        mp.needsUpdate = true;
+      }
+    }
+    if (campfire) {
+      campfire.light.intensity = (1.15 + M.sin(tSec * 11.3) * 0.22 + M.sin(tSec * 7.1) * 0.18) * (0.65 + nightF * 0.85);
+      campfire.f1.scale.set(1 + M.sin(tSec * 9.7) * 0.12, 1 + M.sin(tSec * 13.1) * 0.16, 1);
+      campfire.f2.scale.set(1 + M.sin(tSec * 8.3 + 2) * 0.14, 1 + M.sin(tSec * 12.2 + 1) * 0.18, 1);
+      campfire.f1.material.opacity = 0.85 + M.sin(tSec * 15.7) * 0.12;
+      campfire.f2.material.opacity = 0.7 + M.sin(tSec * 14.1 + 1) * 0.12;
+      var sm = campfire.smoke.geometry.attributes.position;
+      for (var si2 = 0; si2 < sm.count; si2++) {
+        var sy2 = sm.getY(si2) + dt * 0.75;
+        if (sy2 > 4.5) { sy2 = 0.1; sm.setX(si2, (M.random() - 0.5) * 0.2); sm.setZ(si2, (M.random() - 0.5) * 0.2); }
+        sm.setY(si2, sy2);
+        sm.setX(si2, sm.getX(si2) + M.sin(tSec * 0.8 + si2) * dt * 0.22);
+      }
+      sm.needsUpdate = true;
+    }
     for (var b2 = 0; b2 < butterflies.length; b2++) {
       var bf = butterflies[b2];
       if (!bf.visible) continue;
@@ -567,7 +995,23 @@
         } catch (e) {}
       } else if (on) init();
     }
-    return { init: init, setSeason: setSeason, thunder: thunder, setEnabled: setEnabled, isEnabled: function () { return enabled; } };
+    function ding(freq) {
+      if (!ctx || !started || !enabled) return;
+      try {
+        var t = ctx.currentTime;
+        var o = ctx.createOscillator();
+        o.type = 'sine';
+        o.frequency.setValueAtTime(freq || 660, t);
+        o.frequency.exponentialRampToValueAtTime((freq || 660) * 1.5, t + 0.09);
+        var g = ctx.createGain();
+        g.gain.setValueAtTime(0.0001, t);
+        g.gain.exponentialRampToValueAtTime(0.16, t + 0.02);
+        g.gain.exponentialRampToValueAtTime(0.0001, t + 0.5);
+        o.connect(g); g.connect(master);
+        o.start(t); o.stop(t + 0.55);
+      } catch (e) {}
+    }
+    return { init: init, setSeason: setSeason, thunder: thunder, setEnabled: setEnabled, ding: ding, isEnabled: function () { return enabled; } };
   })();
 
   window.WORLD = {
@@ -580,6 +1024,7 @@
     onSeason: function (cb) { seasonCallbacks.push(cb); },
     AudioSys: AudioSys,
     QUALITY: QUALITY, HQ: HQ,
-    clouds: clouds, season: function () { return curSeason; }
+    clouds: clouds, season: function () { return curSeason; },
+    LAKE: LAKE
   };
 })();
