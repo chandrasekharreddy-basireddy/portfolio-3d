@@ -18,7 +18,6 @@
   var loaderEl = document.getElementById('loader');
   var barEl = loaderEl.querySelector('.bar i');
   var statusEl = loaderEl.querySelector('.status');
-  var startBtn = document.getElementById('btn-start');
   var ASSET_URLS = {
     walker: 'models/walker.glb',
     fox: 'https://raw.githubusercontent.com/KhronosGroup/glTF-Sample-Models/master/2.0/Fox/glTF-Binary/Fox.glb',
@@ -666,7 +665,6 @@
   }
 
   /* ---------- UI ---------- */
-  var menu = document.getElementById('menu');
   var hudChip = document.getElementById('hud-chip');
   var hint = document.getElementById('hint');
   var navrail = document.getElementById('navrail');
@@ -810,26 +808,45 @@
     soundBtn.textContent = soundOn ? 'SOUND ON' : 'SOUND OFF';
   };
 
-  var introT = 0, INTRO_LEN = 13;
+  /* ---------- cinematic intro: black -> name -> descend -> press any key ---------- */
+  var introT = 0, INTRO_LEN = 16.5;
   var introCurve = new THREE.CatmullRomCurve3([
-    new THREE.Vector3(13.5, 9.5, 9.0),
-    new THREE.Vector3(7.5, 6.2, 2.0),
-    new THREE.Vector3(2.5, 5.2, 7.5),
-    new THREE.Vector3(-1.0, 4.6, 16.0),
-    new THREE.Vector3(-8.5, 4.4, 27.0),
-    new THREE.Vector3(-3.0, 4.0, 33.0),
-    new THREE.Vector3(0, 3.0, 41.0)
+    new THREE.Vector3(30, 55, -36),
+    new THREE.Vector3(13, 26, -15),
+    new THREE.Vector3(16, 9.5, 2),
+    new THREE.Vector3(9.5, 5.2, 8),
+    new THREE.Vector3(2.5, 3.8, 20),
+    new THREE.Vector3(0, 3.1, 43.5)
   ]);
   var introLook = new THREE.CatmullRomCurve3([
-    new THREE.Vector3(7.5, 0.5, 2.0),
-    new THREE.Vector3(7.5, 0.5, 2.0),
-    new THREE.Vector3(0, 1.2, 2.0),
-    new THREE.Vector3(0, 1.2, 8.0),
-    new THREE.Vector3(-8.5, 0.8, 27.0),
-    new THREE.Vector3(0, 1.2, 30.0),
-    new THREE.Vector3(0, 1.4, 37.0)
+    new THREE.Vector3(0, 6, 2),
+    new THREE.Vector3(5, 3, 2),
+    new THREE.Vector3(12.5, 2.5, 2),
+    new THREE.Vector3(7.5, 1, 2),
+    new THREE.Vector3(0, 1.4, 22),
+    new THREE.Vector3(0, 1.4, 37)
   ]);
   var skipBtn = document.getElementById('btn-skip');
+  var nameEl = document.getElementById('intro-name');
+  var pressEl = document.getElementById('press-any');
+  var fadeEl = document.getElementById('fade');
+  var pressShown = false;
+  function startIntro() {
+    GAME.state = 'intro';
+    introT = 0;
+    pressShown = false;
+    document.getElementById('lbx-t').style.height = '11vh';
+    document.getElementById('lbx-b').style.height = '11vh';
+    skipBtn.style.display = 'block';
+    nameEl.style.opacity = '0';
+    pressEl.style.display = 'none';
+    // open from black
+    fadeEl.style.transition = 'none';
+    fadeEl.style.opacity = '1';
+    void fadeEl.offsetWidth;
+    fadeEl.style.transition = '';
+    fadeEl.style.opacity = '0';
+  }
   function endIntro() {
     if (GAME.state !== 'intro') return;
     GAME.state = 'playing';
@@ -837,26 +854,99 @@
     skipBtn.style.display = 'none';
     document.getElementById('lbx-t').style.height = '0';
     document.getElementById('lbx-b').style.height = '0';
-    document.getElementById('intro-title').style.display = 'none';
+    nameEl.style.opacity = '0';
+    pressEl.style.display = 'none';
+    pressShown = false;
     showHud();
     camPos.copy(camera.position);
     hint.style.display = 'block';
     hint.textContent = '[ SCROLL TO WALK ]';
     setTimeout(function () { hint.style.display = 'none'; }, 9000);
     toastMsg('Welcome to the trail');
+    W.AudioSys.setEnabled(soundOn);
   }
   skipBtn.onclick = endIntro;
-  startBtn.onclick = function () {
-    if (GAME.state !== 'menu') return;
-    GAME.state = 'intro';
-    introT = 0;
+  function introAdvance(dt) {
+    introT += dt;
+    var it = M.min(1, introT / INTRO_LEN);
+    var eIt = it * it * (3 - 2 * it);
+    introCurve.getPoint(eIt, tmpV);
+    camera.position.copy(tmpV);
+    introLook.getPoint(eIt, tmpV2);
+    camera.lookAt(tmpV2);
+    if (modelReady) playerRig.mixer.update(dt);
+    W.tickSeason(dt, tSec);
+    // name card phases
+    if (introT < 0.9) nameEl.style.opacity = '0';
+    else if (introT < 4.8) nameEl.style.opacity = '1';
+    else if (introT < 5.6) nameEl.style.opacity = String(M.max(0, 1 - (introT - 4.8) / 0.8));
+    else nameEl.style.opacity = '0';
+    if (introT >= INTRO_LEN && !pressShown) {
+      pressShown = true;
+      pressEl.style.display = 'block';
+    }
+  }
+  ['keydown', 'pointerdown', 'wheel', 'touchstart'].forEach(function (evName) {
+    window.addEventListener(evName, function (ev) {
+      if (GAME.state !== 'intro') return;
+      if (!pressShown) { endIntro(); return; } // any input skips
+      if (evName === 'pointerdown' && ev.target && ev.target.id === 'btn-skip') return;
+      endIntro();
+    }, { passive: true });
+  });
+
+  /* ---------- pause menu (ESC) ---------- */
+  var menuEl = document.getElementById('menu');
+  document.getElementById('btn-resume').onclick = function () { togglePause(); };
+  document.getElementById('btn-reset').onclick = function () {
+    if (confirm('Reset all progress (orbs, stops, achievements)?')) {
+      STATE.reset();
+      location.reload();
+    }
+  };
+  function togglePause() {
+    if (GAME.state === 'playing') {
+      GAME.state = 'paused';
+      menuEl.classList.add('on');
+    } else if (GAME.state === 'paused') {
+      GAME.state = 'playing';
+      menuEl.classList.remove('on');
+      W.AudioSys.setEnabled(soundOn);
+    }
+  }
+  window.addEventListener('keydown', function (ev) {
+    if (ev.key === 'Escape') { ev.preventDefault(); togglePause(); }
+  });
+
+  /* ---------- final cinematic ending ---------- */
+  var endT = 0;
+  var endFrom = new THREE.Vector3(), endFromLook = new THREE.Vector3();
+  function startEnding() {
+    if (GAME.state !== 'playing') return;
+    GAME.state = 'ending';
+    endT = 0;
+    endFrom.copy(camera.position);
+    endFromLook.copy(camLook);
     document.getElementById('lbx-t').style.height = '11vh';
     document.getElementById('lbx-b').style.height = '11vh';
-    document.getElementById('intro-title').style.display = 'block';
-    skipBtn.style.display = 'block';
-    W.AudioSys.setEnabled(soundOn);
-    menu.classList.remove('on');
+    hint.style.display = 'none';
+    if (window.innerWidth > 700) try { W.AudioSys.ding(520); } catch (e) {}
+  }
+  function finishEnding() {
+    GAME.state = 'playing';
+    document.getElementById('lbx-t').style.height = '0';
+    document.getElementById('lbx-b').style.height = '0';
+    var secs = M.round((performance.now() - GAME.startTime) / 1000);
+    document.getElementById('stat-time').textContent = M.floor(secs / 60) + ':' + ('0' + secs % 60).slice(-2);
+    document.getElementById('stat-season').textContent = GAME.season.charAt(0).toUpperCase() + GAME.season.slice(1);
+    completeEl.classList.add('on');
+  }
+  document.getElementById('btn-restart').onclick = function () {
+    completeEl.classList.remove('on');
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+    toastMsg('The journey begins again');
   };
+
   /* share */
   document.getElementById('btn-share').onclick = function () {
     var url = location.origin + location.pathname;
@@ -918,10 +1008,7 @@
       STATE.unlock('explorer');
       STATE.unlock('full-tour');
       STATE.setComplete();
-      var secs = M.round((performance.now() - GAME.startTime) / 1000);
-      document.getElementById('stat-time').textContent = M.floor(secs / 60) + ':' + ('0' + secs % 60).slice(-2);
-      document.getElementById('stat-season').textContent = GAME.season.charAt(0).toUpperCase() + GAME.season.slice(1);
-      completeEl.classList.add('on');
+      startEnding();
     }
   }
 
@@ -1091,19 +1178,39 @@
     last = now;
     tSec += dt;
     GAME.frames++;
+    GAME._ptAcc = (GAME._ptAcc || 0) + dt;
+    if (GAME._ptAcc >= 5) { STATE.addPlayTime(GAME._ptAcc); GAME._ptAcc = 0; }
 
     if (GAME.state === 'intro') {
-      introT += dt;
-      var it = M.min(1, introT / INTRO_LEN);
-      var eIt = it * it * (3 - 2 * it);
-      introCurve.getPoint(eIt, tmpV);
+      introAdvance(dt);
+      renderer.render(scene, camera);
+      return;
+    }
+    if (GAME.state === 'paused') {
+      renderer.render(scene, camera);
+      return;
+    }
+    if (GAME.state === 'ending') {
+      endT += dt;
+      var ek = M.min(1, endT / 8);
+      var ee = ek * ek * (3 - 2 * ek);
+      tmpV.set(
+        endFrom.x + (6.5 - endFrom.x) * ee,
+        endFrom.y + (9.2 - endFrom.y) * ee,
+        endFrom.z + (-33.5 - endFrom.z) * ee
+      );
       camera.position.copy(tmpV);
-      introLook.getPoint(eIt, tmpV2);
-      camera.lookAt(tmpV2);
-      if (modelReady) playerRig.mixer.update(dt);
+      tmpV2.set(
+        endFromLook.x + (0 - endFromLook.x) * ee,
+        endFromLook.y + (2.2 - endFromLook.y) * ee,
+        endFromLook.z + (-14 - endFromLook.z) * ee
+      );
+      camLook.copy(tmpV2);
+      camera.lookAt(camLook);
+      if (modelReady) { playerRig.mixer.update(dt); headTurn(playerRig, 0); }
       W.tickSeason(dt, tSec);
       renderer.render(scene, camera);
-      if (introT >= INTRO_LEN) endIntro();
+      if (endT >= 8) finishEnding();
       return;
     }
 
@@ -1345,9 +1452,6 @@
     buildCharacters();
     buildStations();
     buildOrbs();
-    GAME.state = 'menu';
-    startBtn.disabled = false;
-    startBtn.textContent = 'START WALKING';
     markGroup('world', true);
     markGroup('audio', true);
     if (tipTimer) { clearInterval(tipTimer); tipTimer = null; }
@@ -1362,7 +1466,7 @@
     });
     loaderEl.style.opacity = '0';
     setTimeout(function () { loaderEl.style.display = 'none'; }, 750);
-    menu.classList.add('on');
+    startIntro();
   });
   requestAnimationFrame(tick);
 })();

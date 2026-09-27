@@ -50,8 +50,9 @@
       <button class="opt" data-a="0">Off</button>
     </div>
   </div>
-  <div class="start-row"><button id="btn-start" disabled>PREPARING</button></div>
-  <div class="tip">scroll to walk &middot; stop at a board to read it &middot; change the seasons up top</div>
+  <div class="start-row"><button id="btn-resume">RESUME</button></div>
+  <div class="start-row"><button id="btn-reset" class="ghost">RESET PROGRESS</button></div>
+  <div class="tip">scroll to walk &middot; WASD in free walk &middot; E to pet &middot; ESC to close</div>
 </div>
 
 <div id="hud">
@@ -85,7 +86,11 @@
 <div id="joy"><div id="joy-knob"></div></div>
 <div id="lbx-t"></div>
 <div id="lbx-b"></div>
-<div id="intro-title"><h1>A WALK THROUGH MY WORK</h1><div class="sub">CHANDRA SEKHAR REDDY &middot; PORTFOLIO</div></div>
+<div id="intro-name">
+  <h1>CHANDRA SEKHAR REDDY</h1>
+  <div class="sub">COMPUTER SCIENCE &middot; BUILDER &middot; EXPLORER</div>
+</div>
+<div id="press-any">PRESS ANY KEY TO ENTER</div>
 <button id="btn-skip">SKIP &raquo;</button>
 <div id="toast"></div>
 <button id="btn-pet">PET</button>
@@ -160,6 +165,15 @@
       <div class="stat"><b id="stat-time">0:00</b><span>walk time</span></div>
       <div class="stat"><b>6 / 6</b><span>stops visited</span></div>
       <div class="stat"><b id="stat-season">Summer</b><span>last season</span></div>
+    </div>
+    <div class="end-title">CHANDRA SEKHAR REDDY</div>
+    <div class="end-tag">COMPUTER SCIENCE &middot; BUILDER &middot; EXPLORER</div>
+    <div class="end-line">LET&rsquo;S BUILD SOMETHING GREAT.</div>
+    <div class="endbtns">
+      <a class="eb" href="https://github.com/chandrasekharreddy-basireddy" target="_blank" rel="noopener">GITHUB</a>
+      <a class="eb" href="https://www.linkedin.com/in/chandra-sekhar-reddy-basireddy" target="_blank" rel="noopener">LINKEDIN</a>
+      <a class="eb" href="mailto:srinivasabasireddy06@gmail.com">EMAIL</a>
+      <button class="eb" id="btn-restart">RESTART JOURNEY</button>
     </div>
     <p>Scroll back up anytime, jump around with the section bar, or try the other seasons.</p>
     <button id="btn-explore">KEEP EXPLORING</button>
