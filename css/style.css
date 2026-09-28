@@ -179,6 +179,13 @@ body { overscroll-behavior-y: none; }
 #btn-resume { font-family: var(--hud); font-size: 16px; letter-spacing: 6px; text-transform: uppercase; color: var(--ink); background: var(--amber); border: none; border-radius: 2px; padding: 15px 52px; cursor: pointer; transition: transform .2s, box-shadow .2s; margin-top: 34px; }
 #btn-resume:hover { transform: translateY(-2px); box-shadow: 0 0 26px rgba(232,176,75,.4); }
 
+/* ---------- photo mode capture ---------- */
+#flash { position: fixed; inset: 0; z-index: 60; background: #fff; opacity: 0; pointer-events: none; transition: opacity .25s; }
+#snapbtn { position: fixed; bottom: 26px; left: 50%; transform: translateX(-50%); z-index: 24; display: none; align-items: center; gap: 8px; font-family: var(--hud); font-size: 13px; letter-spacing: 4px; color: #eaf2f8; background: rgba(12,21,31,.82); border: 1px solid rgba(255,255,255,.3); border-radius: 2px; padding: 13px 26px; cursor: pointer; }
+#snapbtn:hover { border-color: var(--amber); }
+#snapbtn:focus { outline: 1px solid var(--amber); outline-offset: 2px; }
+@media (pointer: coarse) { #snapbtn { display: none; } body.photo-on-touch #snapbtn { display: flex; } }
+
 /* ---------- project dossier ---------- */
 #dossier { position: fixed; inset: 0; z-index: 44; background: rgba(10,17,25,.84); display: none; align-items: center; justify-content: center; }
 #dossier.on { display: flex; }

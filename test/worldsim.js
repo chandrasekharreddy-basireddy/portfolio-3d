@@ -75,6 +75,7 @@ async function main() {
     });
   }
   const proto = window.HTMLCanvasElement.prototype;
+  proto.toDataURL = function () { return 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUg=='; };
   proto.getContext = function (type) {
     if (type === '2d') return fake2d();
     if (type === 'webgl' || type === 'experimental-webgl') return {}; // passes the fallback check
@@ -306,9 +307,12 @@ async function main() {
   await step(6000); /* let the tour run ~100s of game time */
   key('Escape'); await step(3);
   check('ESC exits tour', window.__GAME.state === 'playing');
-  /* photo mode */
+  /* photo mode + capture */
   key('p'); await step(5);
   check('photo mode starts', window.__GAME.state === 'playing');
+  key('f'); await step(3);
+  check('photo capture saves a PNG', (window.__GAME.photoTaken || 0) >= 1);
+  check('flash overlay exists', !!document.getElementById('flash'));
   key('p'); await step(3);
   /* cinematic */
   key('c'); await step(5);

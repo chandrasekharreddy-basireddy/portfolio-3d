@@ -1098,6 +1098,7 @@
     if (GAME.state !== 'playing') return;
     if (k2 === 'p') { if (photo.on) exitModes(); else enterPhoto(); }
     if (k2 === 'c') { if (cinema.on) exitModes(); else enterCinema(); }
+    if (k2 === 'f' && photo.on) takePhoto();
   });
 
   /* ---------- final cinematic ending ---------- */
@@ -1366,6 +1367,12 @@
   }
   var tour = { on: false, i: 0, hold: 0 };
   var photo = { on: false, yaw: 0.6, pitch: 0.32, dist: 5.2, drag: false, lx: 0, ly: 0 };
+  var snapPending = false;
+  var flashEl = null;
+  function takePhoto() {
+    if (!photo.on) return;
+    snapPending = true;
+  }
   var cinema = { on: false, yaw: 0.5 };
   function letterbox(on) {
     document.getElementById('lbx-t').style.height = on ? '11vh' : '0';
@@ -1392,7 +1399,9 @@
     setHudVisible(false);
     menuEl.classList.remove('on');
     hint.style.display = 'block';
-    hint.textContent = '[ PHOTO MODE — DRAG TO FRAME · SCROLL TO ZOOM · P TO EXIT ]';
+    hint.textContent = '[ PHOTO MODE — DRAG TO FRAME · SCROLL TO ZOOM · F TO SNAP · P TO EXIT ]';
+    var sb = document.getElementById('snapbtn');
+    if (sb && isTouch()) sb.style.display = 'flex';
   }
   function enterCinema() {
     exitModes();
@@ -1407,6 +1416,8 @@
   }
   function exitModes() {
     tour.on = false; photo.on = false; cinema.on = false;
+    var sb2 = document.getElementById('snapbtn');
+    if (sb2) sb2.style.display = 'none';
     setHudVisible(true);
     letterbox(false);
     showHud();
@@ -1629,6 +1640,10 @@
     it.action();
   }
   promptBtn.onclick = doInteract;
+  (function () {
+    var sb3 = document.getElementById('snapbtn');
+    if (sb3) sb3.onclick = takePhoto;
+  })();
   window.addEventListener('keydown', function (ev) {
     if (ev.key.toLowerCase() === 'e' && GAME.state === 'playing') doInteract();
   });
@@ -2172,6 +2187,20 @@
     sunLight.target.position.copy(player.pos);
 
     renderer.render(scene, camera);
+    if (photo.on && snapPending) {
+      snapPending = false;
+      GAME.photoTaken = (GAME.photoTaken || 0) + 1;
+      try {
+        if (!flashEl) flashEl = document.getElementById('flash');
+        var url = renderer.domElement.toDataURL('image/png');
+        var a = document.createElement('a');
+        a.href = url;
+        a.download = 'chandras-world-' + new Date().toISOString().slice(0, 19).replace(/[:T]/g, '-') + '.png';
+        document.body.appendChild(a); a.click(); document.body.removeChild(a);
+        if (flashEl) { flashEl.style.opacity = '0.85'; setTimeout(function () { flashEl.style.opacity = '0'; }, 90); }
+        toastMsg('PHOTO SAVED');
+      } catch (e) { GAME.errors.push('photo capture: ' + e.message); }
+    }
   }
 
   window.addEventListener('resize', function () {
