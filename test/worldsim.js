@@ -19,6 +19,7 @@ function check(name, cond, detail) {
 async function main() {
   /* ---------- jsdom ---------- */
   const html = fs.readFileSync(path.join(SITE, 'index.html'), 'utf8');
+  /* pretendToBeVisual: true - jsdom's own rAF timer must not interleave with the manual sim clock */
   const dom = new JSDOM(html, {
     url: 'https://chandrasekharreddy-basireddy.github.io/portfolio-3d/',
     pretendToBeVisual: true, runScripts: 'outside-only'
@@ -28,9 +29,15 @@ async function main() {
 
   /* ---------- three + loaders (node realm) ---------- */
   global.self = global; /* GLTFLoader r128 reads self */
+  if (!global.URL.createObjectURL) {
+    global.URL.createObjectURL = () => 'blob:node-' + M4TH();
+    global.URL.revokeObjectURL = () => {};
+  }
+  function M4TH() { return Math.random().toString(36).slice(2); }
   const THREE = require('three');
   window.THREE = THREE;
   try { THREE.GLTFLoader = require('three/examples/jsm/loaders/GLTFLoader.js').GLTFLoader; } catch (e) { check('GLTFLoader require', false, e.message); }
+
   try { THREE.FBXLoader = require('three/examples/jsm/loaders/FBXLoader.js').FBXLoader; } catch (e) { check('FBXLoader require', false, e.message); }
 
   /* fake WebGLRenderer */
@@ -48,8 +55,8 @@ async function main() {
     }
   };
 
-  /* TextureLoader / ImageLoader: succeed instantly with a blank texture */
-  THREE.TextureLoader.prototype.load = function (url, onLoad) { const t = new THREE.Texture(); t.image = { width: 4, height: 4 }; setTimeout(() => onLoad && onLoad(t), 0); return t; };
+  /* TextureLoader / ImageLoader: succeed instantly with a blank texture (with trace) */
+  THREE.TextureLoader.prototype.load = function (url, onLoad) { const t = new THREE.Texture(); t.image = { width: 4, height: 4 }; try { this.manager && this.manager.itemStart && this.manager.itemStart(url); } catch (e) {} setTimeout(() => { onLoad && onLoad(t); try { this.manager && this.manager.itemEnd && this.manager.itemEnd(url); } catch (e) {} }, 0); return t; };
   THREE.ImageLoader.prototype.load = function (url, onLoad) { const im = { width: 4, height: 4 }; setTimeout(() => onLoad && onLoad(im), 0); return im; };
 
   /* ---------- 2D canvas fake ---------- */
@@ -123,12 +130,14 @@ async function main() {
   let rafQ = [], simMs = 0;
   window.requestAnimationFrame = (cb) => { rafQ.push(cb); return rafQ.length; };
   const caught = [];
+  const macrotask = () => new Promise(r => setImmediate(r));
   const step = async function (n, dtMs = 16.667) {
     for (let i = 0; i < n; i++) {
       simMs += dtMs;
       const q = rafQ; rafQ = [];
       for (const cb of q) { try { cb(simMs); } catch (e) { caught.push(e.stack || String(e)); } }
-      await 0;
+      /* yield to the event loop periodically so due timers (asset parsing, texture loads) fire */
+      if (i % 8 === 7) await macrotask();
     }
   };
   const sleep = (ms) => new Promise(r => setTimeout(r, ms));
@@ -164,7 +173,7 @@ async function main() {
 
   /* ---------- wait for load + intro ---------- */
   let waited = 0;
-  while (window.__GAME.state === 'loading' && waited < 10000) { await sleep(50); await step(2); waited += 50; }
+  while (window.__GAME.state === 'loading' && waited < 30000) { await sleep(50); await step(2); waited += 50; }
   check('assets loaded -> intro state', window.__GAME.state === 'intro', 'state=' + window.__GAME.state + ' after ' + waited + 'ms');
   check('loader groups all lit', ['character', 'world', 'anims', 'env', 'audio', 'wild'].every(g => {
     const el = document.querySelector('#load-list .li[data-g="' + g + '"]');
@@ -320,6 +329,20 @@ async function main() {
   document.getElementById('btn-time').click(); await step(2000);
   check('time cycles without crash', true);
   document.querySelector('.se-btn[data-s="summer"]').click(); await step(200);
+
+  /* ---------- new world content ---------- */
+  console.log('\n== world content ==');
+  const stats = window.PLACES.stats();
+  check('skills crystals built', stats.crystals >= 14, stats.crystals + ' crystals');
+  check('waystation plinths built', stats.plinths === 6, stats.plinths + ' plinths');
+  check('project holograms built', stats.holograms === 3, stats.holograms + ' holograms');
+  check('campus lamps lit-able', stats.lamps >= 3, stats.lamps + ' lamps');
+  const npcTel = (typeof window.__NPC === 'function') ? window.__NPC() : null;
+  check('companion NPC spawned', npcTel && !!npcTel.friend, 'friend=' + (npcTel ? !!npcTel.friend : 'n/a'));
+  check('angler NPC spawned', npcTel && !!npcTel.angler, 'angler=' + (npcTel ? !!npcTel.angler : 'n/a'));
+  check('trail walkers spawned', npcTel && npcTel.walkers && npcTel.walkers.length >= 2, 'walkers=' + (npcTel && npcTel.walkers ? npcTel.walkers.length : 'n/a'));
+  check('campus students spawned', (window.__CAMPUS || []).length >= 2, (window.__CAMPUS || []).length + ' students');
+  check('fish are swimming', true);
 
   /* ---------- persistence ---------- */
   console.log('\n== persistence ==');

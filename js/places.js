@@ -5,7 +5,7 @@
   'use strict';
   var M = Math, PI = M.PI, TMPV = null;
   var CRYSTALS = [], TREE = null, MAST_LIGHT = null, TERMINAL = null, DEVROOM = null, SIGNS = [];
-  var WAYSTATION = null, DECK = null, ID_CARD = null;
+  var WAYSTATION = null, DECK = null, ID_CARD = null, HOLOS = [], CAMPUS_LAMPS = [];
 
   function labelTex(title, sub, w, h, bg, fg) {
     var c = document.createElement('canvas');
@@ -31,7 +31,8 @@
     if (!TMPV && window.THREE) TMPV = new THREE.Vector3();
     var scene = ctx.scene, W = ctx.W, addInteract = ctx.addInteract, openCard = ctx.openCard,
       openProject = ctx.openProject, HQ = ctx.HQ, DATA = ctx.DATA, toast = ctx.toast, player = ctx.player,
-      playerRig = ctx.playerRig, openJourney = ctx.openJourney, STATE = ctx.STATE, STATIONS = ctx.STATIONS;
+      playerRig = ctx.playerRig, openJourney = ctx.openJourney, STATE = ctx.STATE, STATIONS = ctx.STATIONS,
+      spawnCampusWalker = ctx.spawnCampusWalker, PROJECT_ARCH = ctx.PROJECT_ARCH;
     var SK = DATA.PORTFOLIO.skills;
 
     /* ============ SKILLS FOREST (west of the trail, z 8..24) ============ */
@@ -193,8 +194,48 @@
       return g;
     }
 
+    function projectHologram(id, x, y, z) {
+      var arch = (PROJECT_ARCH && PROJECT_ARCH[id]) || [];
+      var g = new THREE.Group();
+      var beam = new THREE.Mesh(
+        new THREE.CylinderGeometry(0.035, 0.3, 3.6, 8, 1, true),
+        new THREE.MeshBasicMaterial({ color: 0x69d2ff, transparent: true, opacity: 0.1, side: THREE.DoubleSide, depthWrite: false }));
+      beam.position.y = -1.9;
+      g.add(beam);
+      var nodeMat = new THREE.MeshBasicMaterial({ color: 0x9fe4ff, wireframe: true, transparent: true, opacity: 0.85 });
+      var lineMat = new THREE.LineBasicMaterial({ color: 0x69d2ff, transparent: true, opacity: 0.5 });
+      var prev = null;
+      for (var i = 0; i < arch.length; i++) {
+        var a = PI * 2 * i / M.max(1, arch.length);
+        var node = new THREE.Mesh(new THREE.OctahedronGeometry(0.17, 0), nodeMat);
+        node.position.set(M.cos(a) * 0.8, M.sin(i * 1.3) * 0.22, M.sin(a) * 0.8);
+        g.add(node);
+        var lbl = new THREE.Mesh(new THREE.PlaneGeometry(1.15, 0.24),
+          new THREE.MeshBasicMaterial({ map: labelTex(arch[i][0], null, 512, 96, 'rgba(8,18,28,.55)', '#9fe4ff'), transparent: true, depthWrite: false }));
+        lbl.position.copy(node.position).multiplyScalar(1.42);
+        lbl.position.y += 0.02;
+        g.add(lbl);
+        if (prev) {
+          var geo = new THREE.BufferGeometry().setFromPoints([prev.position.clone(), node.position.clone()]);
+          g.add(new THREE.Line(geo, lineMat));
+        }
+        prev = node;
+      }
+      if (prev && arch.length > 2) {
+        var geoC = new THREE.BufferGeometry().setFromPoints([
+          new THREE.Vector3(prev.position.x, prev.position.y, prev.position.z),
+          new THREE.Vector3(M.cos(0) * 0.8, M.sin(0) * 0.22, M.sin(0) * 0.8)]);
+        g.add(new THREE.Line(geoC, lineMat));
+      }
+      g.position.set(x, y + 5.1, z);
+      g.userData.holo = true;
+      scene.add(g);
+      HOLOS.push(g);
+    }
+
     // P01 Survival School - school/lab building
     building(-9.2, -7.0, 4.6, 2.6, 3.2, 'SURVIVAL SCHOOL', 'MCQ learning platform · FastAPI · Next.js');
+    projectHologram('survival-school', -9.2, W.terrainHeight(-9.2, -7.0), -7.0);
     addInteract({
       id: 'p01', label: 'EXPLORE SURVIVAL SCHOOL', pos: new THREE.Vector3(-9.2, W.terrainHeight(-9.2, -5.2), -5.2), radius: 3.8,
       action: function () { openProject('survival-school'); }
@@ -229,6 +270,7 @@
       SIGNS.push(sign);
       g.position.set(mx, my, mz);
       scene.add(g);
+      projectHologram('signal-lite', mx, my, mz);
       addInteract({
         id: 'p02', label: 'EXPLORE SIGNAL-LITE', pos: new THREE.Vector3(mx, my + 1, mz), radius: 3.6,
         action: function () { openProject('signal-lite'); }
@@ -254,6 +296,7 @@
       g.add(body, glass, toproof, ac, sign);
       g.position.set(sx, sy, sz);
       scene.add(g);
+      projectHologram('saiu-v2', sx, sy, sz);
       addInteract({
         id: 'p03', label: 'EXPLORE SAIU V2', pos: new THREE.Vector3(sx, sy + 1, sz + 1.8), radius: 3.6,
         action: function () { openProject('saiu-v2'); }
@@ -431,6 +474,141 @@
       card.position.set(0.13, -0.02, 0.16);
       card.rotation.set(0.1, 0.35, 0.12);
       ID_CARD = { mesh: card, seen: false };
+    })();
+
+    /* ============ campus quadrangle: library, path, notice board, benches, lamps, students ============ */
+    (function () {
+      var pathMat = new THREE.MeshStandardMaterial({ color: 0x9d8f74, roughness: 1 });
+      var wood = new THREE.MeshStandardMaterial({ color: 0x7a5a38, roughness: 0.9 });
+      function pathStrip(x1, z1, x2, z2, w) {
+        var dx = x2 - x1, dz = z2 - z1;
+        var len = M.sqrt(dx * dx + dz * dz);
+        var seg = new THREE.Mesh(new THREE.PlaneGeometry(w || 1.1, len + 0.4), pathMat);
+        seg.rotation.x = -PI / 2;
+        seg.rotation.z = -M.atan2(dz, dx);
+        var mx = (x1 + x2) / 2, mz = (z1 + z2) / 2;
+        seg.position.set(mx, W.terrainHeight(mx, mz) + 0.035, mz);
+        seg.receiveShadow = HQ();
+        scene.add(seg);
+      }
+      /* path: trail -> university -> library, plus a spur to the quadrangle */
+      pathStrip(-2.4, -17.4, -7.0, -17.5, 1.2);
+      pathStrip(-7.0, -17.5, -9.6, -16.9, 1.0);
+      pathStrip(-9.6, -16.9, -12.8, -15.6, 1.0);
+      pathStrip(-9.6, -16.9, -10.4, -19.4, 0.9);
+      /* library block */
+      (function () {
+        var lx = -13.2, lz = -14.6, ly = W.terrainHeight(lx, lz);
+        var g = new THREE.Group();
+        var body = new THREE.Mesh(new THREE.BoxGeometry(3.4, 1.8, 2.6), wallMat);
+        body.position.y = 1.15; body.castShadow = body.receiveShadow = HQ();
+        var roof = new THREE.Mesh(new THREE.BoxGeometry(3.8, 0.16, 3.0), roofMat);
+        roof.position.y = 2.18;
+        var sign = new THREE.Mesh(new THREE.PlaneGeometry(2.9, 0.7),
+          new THREE.MeshBasicMaterial({ map: labelTex('LIBRARY & LAB BLOCKS', null, 640, 128) }));
+        sign.position.set(0, 2.7, 0.1);
+        SIGNS.push(sign);
+        g.add(body, roof, sign);
+        g.position.set(lx, ly, lz);
+        g.rotation.y = 0.42;
+        scene.add(g);
+      })();
+      /* study courtyard between the buildings */
+      var qcx = -10.6, qcz = -18.3, qy = W.terrainHeight(qcx, qcz);
+      var court = new THREE.Mesh(new THREE.CylinderGeometry(2.3, 2.4, 0.09, 20), new THREE.MeshStandardMaterial({ color: 0x8d8272, roughness: 1 }));
+      court.position.set(qcx, qy + 0.045, qcz);
+      court.receiveShadow = HQ();
+      scene.add(court);
+      /* book piles on the courtyard edge */
+      [[0.7, 0.15, 0.5], [1.0, 0.32, 0.3], [-0.8, 0.2, -0.6]].forEach(function (b) {
+        var book = new THREE.Mesh(new THREE.BoxGeometry(0.4, 0.14, 0.3),
+          new THREE.MeshStandardMaterial({ color: [0x7a3b2e, 0x2e4a7a, 0x71582e][(b[1] * 10 | 0) % 3], roughness: 0.85 }));
+        book.position.set(qcx + b[0], qy + 0.09 + b[1], qcz + b[2]);
+        book.rotation.y = b[0] * 2;
+        book.castShadow = HQ();
+        scene.add(book);
+      });
+      /* benches facing the courtyard */
+      function bench(px, pz, ry) {
+        var g = new THREE.Group();
+        var seat = new THREE.Mesh(new THREE.BoxGeometry(1.4, 0.07, 0.4), wood);
+        seat.position.y = 0.4;
+        var bk = new THREE.Mesh(new THREE.BoxGeometry(1.4, 0.36, 0.06), wood);
+        bk.position.set(0, 0.64, -0.2);
+        g.add(seat, bk);
+        [-0.55, 0.55].forEach(function (lx) {
+          var lg = new THREE.Mesh(new THREE.BoxGeometry(0.07, 0.4, 0.34), wood);
+          lg.position.set(lx, 0.2, 0);
+          g.add(lg);
+        });
+        g.position.set(px, W.terrainHeight(px, pz) + 0.02, pz);
+        g.rotation.y = ry;
+        scene.add(g);
+      }
+      bench(-9.2, -17.2, -0.6);
+      bench(-11.9, -18.9, 2.4);
+      bench(-10.2, -20.4, 2.9);
+      /* notice board */
+      (function () {
+        var nx = -7.9, nz = -15.1, ny = W.terrainHeight(nx, nz);
+        var g = new THREE.Group();
+        [-0.75, 0.75].forEach(function (ox) {
+          var post = new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.06, 2.1, 6), wood);
+          post.position.set(ox, 1.05, 0);
+          post.castShadow = HQ();
+          g.add(post);
+        });
+        var c = document.createElement('canvas');
+        c.width = 512; c.height = 384;
+        var x = c.getContext('2d');
+        x.fillStyle = '#c9b483'; x.fillRect(0, 0, 512, 384);
+        x.fillStyle = '#26313d'; x.fillRect(18, 18, 476, 348);
+        x.fillStyle = '#e8b04b'; x.font = '600 30px Georgia'; x.textAlign = 'center';
+        x.fillText('CS DEPT NOTICEBOARD', 256, 66);
+        x.fillStyle = '#dfe9f2'; x.font = '24px Georgia';
+        x.fillText('CLASS X — 560 / 600', 256, 140);
+        x.fillText('CLASS XII — 975 / 1000', 256, 196);
+        x.fillText('B.TECH Y2 CSE — CGPA 9.33', 256, 252);
+        x.fillStyle = '#8fa8bc'; x.font = 'italic 20px Georgia';
+        x.fillText('Sai University · Bhashyam schools', 256, 322);
+        var board = new THREE.Mesh(new THREE.PlaneGeometry(1.7, 1.28),
+          new THREE.MeshStandardMaterial({ map: new THREE.CanvasTexture(c), roughness: 0.85 }));
+        board.position.set(0, 1.45, 0.06);
+        g.add(board);
+        var frame = new THREE.Mesh(new THREE.BoxGeometry(1.86, 1.44, 0.06), new THREE.MeshStandardMaterial({ color: 0x4a3826, roughness: 0.9 }));
+        frame.position.set(0, 1.45, 0);
+        g.add(frame);
+        g.position.set(nx, ny, nz);
+        g.rotation.y = 0.85;
+        scene.add(g);
+        addInteract({
+          id: 'noticeboard', label: 'READ THE NOTICE BOARD', pos: new THREE.Vector3(nx, ny + 1.2, nz), radius: 2.6,
+          action: function () { openCard('education'); toast('Class X 560/600 · Class XII 975/1000 · B.Tech CGPA 9.33'); }
+        });
+      })();
+      /* campus lamps (warm at night) */
+      [[-4.4, -17.4], [-8.1, -16.4], [-11.6, -16.3]].forEach(function (L) {
+        var ly = W.terrainHeight(L[0], L[1]);
+        var pole = new THREE.Mesh(new THREE.CylinderGeometry(0.045, 0.06, 2.9, 6), trimMat);
+        pole.position.set(L[0], ly + 1.45, L[1]);
+        pole.castShadow = HQ();
+        scene.add(pole);
+        var lampMat = new THREE.MeshStandardMaterial({ color: 0xffd98a, emissive: 0xffc46b, emissiveIntensity: 0.25, roughness: 0.5 });
+        var lamp = new THREE.Mesh(new THREE.BoxGeometry(0.24, 0.3, 0.24), lampMat);
+        lamp.position.set(L[0], ly + 2.95, L[1]);
+        scene.add(lamp);
+        if (HQ()) {
+          var light = new THREE.PointLight(0xffc46b, 0, 8.5, 2);
+          light.position.set(L[0], ly + 2.9, L[1]);
+          scene.add(light);
+          CAMPUS_LAMPS.push({ light: light, mat: lampMat });
+        }
+      });
+      /* two students walking the campus */
+      if (spawnCampusWalker) {
+        spawnCampusWalker({ x: -4.6, z: -16.8 }, { x: -12.6, z: -15.2 }, { top: 0x5a7a9b, bottom: 0x2e3844 }, 0.85);
+        spawnCampusWalker({ x: -6.2, z: -19.6 }, { x: -11.6, z: -19.0 }, { top: 0x8a5a7b, bottom: 0x33302e }, 0.72);
+      }
     })();
 
     /* ============ achievements waystation (between education and contact) ============ */
@@ -611,6 +789,16 @@
         TERMINAL.tex.needsUpdate = true;
       }
     }
+    var lamGlow = 0.25 + W.nightFactor() * 1.5;
+    for (var l3 = 0; l3 < CAMPUS_LAMPS.length; l3++) {
+      CAMPUS_LAMPS[l3].mat.emissiveIntensity = lamGlow;
+      CAMPUS_LAMPS[l3].light.intensity = W.nightFactor() * 1.35;
+    }
+    for (var h3 = 0; h3 < HOLOS.length; h3++) {
+      var H = HOLOS[h3];
+      H.rotation.y += dt * 0.22;
+      H.position.y += M.sin(tSec * 0.7 + h3 * 2.1) * 0.0006;
+    }
     if (ID_CARD && !ID_CARD.seen && ID_CARD.mesh.getWorldPosition) {
       ID_CARD.mesh.getWorldPosition(TMPV);
       if (GAME && GAME.cam && TMPV.distanceTo(GAME.cam.position) < 2.1) {
@@ -657,5 +845,8 @@
     return null;
   }
 
-  window.PLACES = { build: build, tick: tick, updateWaystation: updateWaystation, deckAt: deckAt };
+  window.PLACES = { build: build, tick: tick, updateWaystation: updateWaystation, deckAt: deckAt,
+    stats: function () {
+      return { crystals: CRYSTALS.length, plinths: WAYSTATION ? WAYSTATION.plinths.length : 0, holograms: HOLOS.length, lamps: CAMPUS_LAMPS.length };
+    } };
 })();

@@ -368,6 +368,17 @@
       }, function (e) { GAME.errors.push('character parse: ' + e); onReady(null); });
     } catch (e) { GAME.errors.push('character: ' + e.message); onReady(null); }
   }
+  /* campus students: walk between two world points with idle pauses */
+  function spawnCampusWalker(a, b, tint, speed) {
+    makeCharacter({ src: 'friend', top: tint.top, bottom: tint.bottom }, function (r) {
+      if (!r) return;
+      var n = { rig: r, a: a, b: b, t: 0, dir: 1, speed: speed || 0.8, wait: 1 + M.random() * 2 };
+      campusNpcs.push(n);
+      r.obj.position.set(a.x, W.terrainHeight(a.x, a.z) + 0.04, a.z);
+      scene.add(r.obj);
+    });
+  }
+
   function headTurn(rig, add) {
     if (!rig.head) return;
     rig.head.rotation.y -= rig._headAdd;
@@ -405,7 +416,8 @@
 
   var playerRig = null, modelReady = false;
   var player = { pos: new THREE.Vector3(), yaw: PI, vel: 0, hSpeed: 0, lastMx: 0, lastMz: -1 };
-  var friendRig = null, anglerRig = null, npcs = [], foxRig = null, horseRig = null, flamingos = [], foxState = null;
+  var friendRig = null, anglerRig = null, npcs = [], foxRig = null, horseRig = null, flamingos = [], foxState = null, campusNpcs = [];
+  window.__CAMPUS = campusNpcs; /* telemetry for the worldsim harness */
   var lamps = [];
 
   function buildCharacters() {
@@ -1713,6 +1725,7 @@
     }
   }
 
+  var fpsEma = 60, lowFpsT = 0, autoQualityDone = false;
   function tick(now) {
     requestAnimationFrame(tick);
     var dt = M.min(0.05, (now - last) / 1000);
@@ -1720,6 +1733,19 @@
     tSec += dt;
     GAME.cam = camera;
     GAME.frames++;
+    /* performance watchdog: step down to Fast once if the device can't hold ~30fps */
+    if (GAME.state === 'playing' && !autoQualityDone && tSec > 12) {
+      var inst = dt > 0 ? 1 / dt : 60;
+      fpsEma += (inst - fpsEma) * 0.05;
+      if (fpsEma < 27) lowFpsT += dt; else lowFpsT = M.max(0, lowFpsT - dt * 0.5);
+      if (lowFpsT > 6 && W.QUALITY.level === 'high') {
+        autoQualityDone = true;
+        applyQuality('fast');
+        try { localStorage.setItem('csq', 'fast'); } catch (e) {}
+        document.querySelectorAll('#opt-quality .opt').forEach(function (b) { b.classList.toggle('on', b.getAttribute('data-q') === 'fast'); });
+        toastMsg('PERFORMANCE MODE ENABLED');
+      }
+    }
     GAME._ptAcc = (GAME._ptAcc || 0) + dt;
     if (GAME._ptAcc >= 5) { STATE.addPlayTime(GAME._ptAcc); GAME._ptAcc = 0; }
 
@@ -1966,6 +1992,27 @@
       anglerRig.mixer.update(dt);
       if (anglerRig.bobber) anglerRig.bobber.position.y = anglerRig.bobber.userData.y0 + M.sin(tSec * 1.8) * 0.045;
     }
+    for (var cn = 0; cn < campusNpcs.length; cn++) {
+      var CN = campusNpcs[cn];
+      CN.rig.mixer.update(dt);
+      var dist = M.sqrt((CN.b.x - CN.a.x) * (CN.b.x - CN.a.x) + (CN.b.z - CN.a.z) * (CN.b.z - CN.a.z)) || 1;
+      if (CN.wait > 0) {
+        CN.wait -= dt;
+        var acts = CN.rig.actions || {};
+        for (var k5 in acts) acts[k5].setEffectiveWeight(k5 === 'idle' ? 1 : 0);
+        CN.rig.obj.rotation.y += M.sin(tSec * 0.4 + cn) * 0.003;
+      } else {
+        var acts2 = CN.rig.actions || {};
+        for (var k6 in acts2) acts2[k6].setEffectiveWeight(k6 === 'walk' ? 1 : 0);
+        CN.t += CN.dir * (CN.speed / dist) * dt;
+        if (CN.t >= 1) { CN.t = 1; CN.dir = -1; CN.wait = 2 + M.random() * 4; }
+        if (CN.t <= 0) { CN.t = 0; CN.dir = 1; CN.wait = 2 + M.random() * 4; }
+        var nx2 = CN.a.x + (CN.b.x - CN.a.x) * CN.t, nz2 = CN.a.z + (CN.b.z - CN.a.z) * CN.t;
+        CN.rig.obj.position.set(nx2, W.terrainHeight(nx2, nz2) + 0.04, nz2);
+        CN.rig.obj.rotation.y = M.atan2(CN.dir > 0 ? CN.b.x - CN.a.x : CN.a.x - CN.b.x, CN.dir > 0 ? CN.b.z - CN.a.z : CN.a.z - CN.b.z);
+        armSwing(CN.rig, tSec * CN.speed * 5.4, 0.5);
+      }
+    }
     if (foxRig) {
       var fd = player.pos.distanceTo(foxRig.obj.position);
       if (!foxState) foxState = { mode: 'wander', t: 4 };
@@ -2138,7 +2185,7 @@
   loadAll(function () {
     buildCharacters();
     buildStations();
-    try { PLACES.build({ scene: scene, W: W, addInteract: addInteract, openCard: openCard, openProject: openProject, HQ: W.HQ, DATA: DATA, toast: toastMsg, player: player, playerRig: playerRig, openJourney: openJourney, STATE: STATE, STATIONS: STATIONS }); } catch (e) { GAME.errors.push('places: ' + e.message); }
+    try { PLACES.build({ scene: scene, W: W, addInteract: addInteract, openCard: openCard, openProject: openProject, HQ: W.HQ, DATA: DATA, toast: toastMsg, player: player, playerRig: playerRig, openJourney: openJourney, STATE: STATE, STATIONS: STATIONS, spawnCampusWalker: spawnCampusWalker, PROJECT_ARCH: DOSSIER_ARCH }); } catch (e) { GAME.errors.push('places: ' + e.message); }
     try { PLACES.updateWaystation(STATE, DATA); } catch (e) {}
     buildOrbs();
     markGroup('world', true);
