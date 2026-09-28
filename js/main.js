@@ -1352,6 +1352,12 @@
   }
   document.getElementById('btn-journey').onclick = openJourney;
   document.getElementById('btn-jclose').onclick = function () { journeyEl.classList.remove('on'); };
+  document.getElementById('btn-replay').onclick = function () {
+    journeyEl.classList.remove('on');
+    document.body.classList.remove('card-open');
+    if (!STATE.data.complete) { toastMsg('Finish the trail first'); return; }
+    startEnding();
+  };
   hudChip.onclick = openJourney;
   hudChip.style.cursor = 'pointer';
   hudChip.addEventListener('keydown', function (ev) { if (ev.key === 'Enter' || ev.key === ' ') { ev.preventDefault(); openJourney(); } });
@@ -1478,6 +1484,7 @@
       questTextEl.textContent = 'Journey complete — thanks for walking with me';
       questEl.classList.add('done');
     }
+    GAME.questStop = next && next.stop ? next.stop : null;
   }
 
   /* ---------- minimap ---------- */
@@ -1518,6 +1525,14 @@
       mmX.fillStyle = found ? '#6fd08a' : 'rgba(255,255,255,.35)';
       mmX.fillRect(-2.6, -2.6, 5.2, 5.2);
       mmX.restore();
+      if (GAME.questStop && st.id === GAME.questStop) {
+        var pr = 4.5 + M.sin(tSec * 4) * 1.6;
+        mmX.strokeStyle = 'rgba(232,176,75,' + (0.55 + 0.35 * M.sin(tSec * 4)).toFixed(3) + ')';
+        mmX.lineWidth = 1.5;
+        mmX.beginPath();
+        mmX.arc(sx, sz, pr, 0, PI * 2);
+        mmX.stroke();
+      }
     }
     // player
     var px = mmMX(player.pos.x), pz = mmMZ(player.pos.z);
@@ -2198,6 +2213,7 @@
         a.download = 'chandras-world-' + new Date().toISOString().slice(0, 19).replace(/[:T]/g, '-') + '.png';
         document.body.appendChild(a); a.click(); document.body.removeChild(a);
         if (flashEl) { flashEl.style.opacity = '0.85'; setTimeout(function () { flashEl.style.opacity = '0'; }, 90); }
+        try { W.AudioSys.shutter(); } catch (e) {}
         toastMsg('PHOTO SAVED');
       } catch (e) { GAME.errors.push('photo capture: ' + e.message); }
     }

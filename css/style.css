@@ -228,6 +228,8 @@ body { overscroll-behavior-y: none; }
 .jach.got { border-left-color: #6fd08a; }
 .jach.got b { color: #d9f2e2; }
 .jach.got span { color: #a9c2d4; }
+#btn-replay { font-family: var(--hud); font-size: 12px; letter-spacing: 4px; text-transform: uppercase; color: var(--amber); background: transparent; border: 1px solid var(--amber); border-radius: 2px; padding: 10px 28px; cursor: pointer; margin-bottom: 10px; }
+#btn-replay:hover { background: rgba(232,176,75,.12); }
 #btn-jclose { font-family: var(--hud); font-size: 12px; letter-spacing: 4px; text-transform: uppercase; color: var(--ink); background: var(--amber); border: none; border-radius: 2px; padding: 11px 30px; cursor: pointer; }
 
 /* ---------- ending panel ---------- */

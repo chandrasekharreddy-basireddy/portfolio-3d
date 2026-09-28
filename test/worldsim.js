@@ -195,6 +195,7 @@ async function main() {
   check('hud chip visible', document.getElementById('hud-chip').style.display === 'block');
   check('quest visible', document.getElementById('quest').style.display === 'block');
   check('minimap visible', document.getElementById('minimap').style.display === 'block');
+  check('quest target exposed for minimap ping', !!window.__GAME.questStop, 'questStop=' + window.__GAME.questStop);
   check('objective text set', (document.getElementById('quest-text').textContent || '').length > 3, document.getElementById('quest-text').textContent);
 
   /* ---------- scroll journey ---------- */
@@ -323,6 +324,14 @@ async function main() {
   await step(3);
   check('journey panel opens', document.getElementById('journey').classList.contains('on'));
   document.getElementById('btn-jclose').click();
+  check('replay finale button exists', !!document.getElementById('btn-replay'));
+  window.__GAME.state = 'playing';
+  document.getElementById('btn-replay').click();
+  await step(30);
+  check('replay finale restarts cinematic', window.__GAME.state === 'ending');
+  await step(540); /* 9s cinematic */
+  check('finale finishes back to play', window.__GAME.state === 'playing' && document.getElementById('complete').classList.contains('on'));
+  document.getElementById('btn-explore').click();
 
   /* ---------- season + time ---------- */
   console.log('\n== world systems ==');

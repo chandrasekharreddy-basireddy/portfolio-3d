@@ -1228,7 +1228,23 @@
         o.start(t); o.stop(t + 0.55);
       } catch (e) {}
     }
-    return { init: init, setSeason: setSeason, thunder: thunder, setEnabled: setEnabled, ding: ding, isEnabled: function () { return enabled; },
+    function shutter() {
+      if (!ctx || !started || !enabled) return;
+      try {
+        [1750, 830].forEach(function (f, i) {
+          var t = ctx.currentTime + i * 0.07;
+          var o = ctx.createOscillator();
+          o.type = 'square';
+          o.frequency.setValueAtTime(f, t);
+          var g = ctx.createGain();
+          g.gain.setValueAtTime(0.12, t);
+          g.gain.exponentialRampToValueAtTime(0.0001, t + 0.05);
+          o.connect(g); g.connect(master);
+          o.start(t); o.stop(t + 0.06);
+        });
+      } catch (e) {}
+    }
+    return { init: init, setSeason: setSeason, thunder: thunder, setEnabled: setEnabled, ding: ding, shutter: shutter, isEnabled: function () { return enabled; },
       setWaterfall: setWaterfall, stepSnd: stepSnd, chirp: chirp, tickPad: tickPad, setPadLevel: setPadLevel };
   })();
 
