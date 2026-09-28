@@ -36,8 +36,6 @@
     fox: 'models/fox.glb',
     horse: 'models/horse.glb',
     flamingo: 'models/flamingo.glb',
-    friend: 'models/friend.glb',
-    angler: 'models/angler.glb',
     clipsIdle: 'models/clips-idle.json',
     clipsWalk: 'models/clips-walk.json',
     clipsRun: 'models/clips-run.json',
@@ -53,9 +51,9 @@
     fallroad: 'models/fallroad.glb',
     birch: 'models/birch.glb'
   };
-  var ASSETS = { walker: null, friend: null, angler: null, fox: null, horse: null, flamingo: null, clips: null, photo: null, face: null, wolf: null, ironman: null, peacock: null, toucan: null, bird: null, monkey: null, flower: null, fallroad: null, birch: null };
+  var ASSETS = { walker: null, fox: null, horse: null, flamingo: null, clips: null, photo: null, face: null, wolf: null, ironman: null, peacock: null, toucan: null, bird: null, monkey: null, flower: null, fallroad: null, birch: null };
   var LOAD_GROUPS = {
-    character: ['walker', 'friend', 'angler', 'photo', 'face'],
+    character: ['walker', 'photo', 'face'],
     wild: ['fox', 'horse', 'flamingo', 'wolf', 'peacock', 'toucan', 'bird', 'monkey', 'flower'],
     env: ['fallroad', 'birch'],
     anims: ['clipsIdle', 'clipsWalk', 'clipsRun']
@@ -70,14 +68,12 @@
       if (LOAD_GROUPS[g].every(function (k) { return loadDone[k]; })) markGroup(g, true);
     }
   }
-  var LOAD_TOTAL = 20, loadedCount = 0;
+  var LOAD_TOTAL = 18, loadedCount = 0;
   var loaders = [
     ['walker', ASSET_URLS.walker, 'loading the walker'],
     ['fox', ASSET_URLS.fox, 'waking the fox'],
     ['horse', ASSET_URLS.horse, 'leading out the horse'],
     ['flamingo', ASSET_URLS.flamingo, 'calling the flamingos'],
-    ['friend', ASSET_URLS.friend, 'meeting a friend'],
-    ['angler', ASSET_URLS.angler, 'greeting the angler'],
     ['clipsIdle', ASSET_URLS.clipsIdle, 'rehearsing movements'],
     ['clipsWalk', ASSET_URLS.clipsWalk, 'rehearsing movements'],
     ['clipsRun', ASSET_URLS.clipsRun, 'rehearsing movements'],
@@ -368,16 +364,6 @@
       }, function (e) { GAME.errors.push('character parse: ' + e); onReady(null); });
     } catch (e) { GAME.errors.push('character: ' + e.message); onReady(null); }
   }
-  /* campus students: walk between two world points with idle pauses */
-  function spawnCampusWalker(a, b, tint, speed) {
-    makeCharacter({ src: 'friend', top: tint.top, bottom: tint.bottom }, function (r) {
-      if (!r) return;
-      var n = { rig: r, a: a, b: b, t: 0, dir: 1, speed: speed || 0.8, wait: 1 + M.random() * 2 };
-      campusNpcs.push(n);
-      r.obj.position.set(a.x, W.terrainHeight(a.x, a.z) + 0.04, a.z);
-      scene.add(r.obj);
-    });
-  }
 
   function headTurn(rig, add) {
     if (!rig.head) return;
@@ -416,8 +402,7 @@
 
   var playerRig = null, modelReady = false;
   var player = { pos: new THREE.Vector3(), yaw: PI, vel: 0, hSpeed: 0, lastMx: 0, lastMz: -1 };
-  var friendRig = null, anglerRig = null, npcs = [], foxRig = null, horseRig = null, flamingos = [], foxState = null, campusNpcs = [];
-  window.__CAMPUS = campusNpcs; /* telemetry for the worldsim harness */
+  var foxRig = null, horseRig = null, flamingos = [], foxState = null;
   var lamps = [];
 
   function buildCharacters() {
@@ -460,43 +445,6 @@
       modelReady = true;
       GAME.model = r.obj;
       GAME.modelLoaded = true;
-    });
-    makeCharacter({ src: 'friend', keepOutfit: true }, function (r) {
-      if (!r) return;
-      friendRig = r;
-      var tk = registerTalker(friendRig, 'friend');
-      addInteract({ id: 'npc-friend', label: 'TALK TO THE FRIEND', pos: r.obj.position, radius: 2.7,
-        action: function () { if (tk) { tk.line = (tk.line + 1) % 3; tk.t = 0.5; } } });
-      r.obj.position.set(-2.6, W.terrainHeight(-2.6, 30.4) + 0.04, 30.4);
-      scene.add(r.obj);
-    });
-    [
-      { t0: 0.13, t1: 0.38, x: 1.6, top: 0x6f8a4f, bottom: 0x4a4a4a, speed: 1.05 },
-      { t0: 0.60, t1: 0.90, x: -1.6, top: 0xa8685c, bottom: 0x39434f, speed: 0.95 }
-    ].forEach(function (w, wi) {
-      makeCharacter({ src: wi === 0 ? 'friend' : 'angler', top: w.top, bottom: w.bottom }, function (r) {
-        if (!r) return;
-        var npc = { rig: r, t: w.t0, dir: 1, x: w.x, t0: w.t0, t1: w.t1, speed: w.speed };
-        npcs.push(npc);
-        registerTalker(r, npcs.length === 1 ? 'walker' : 'walker2');
-        var tp = W.trailPos(npc.t);
-        r.obj.position.set(w.x, W.terrainHeight(w.x, tp.z) + 0.04, tp.z);
-        scene.add(r.obj);
-      });
-    });
-    makeCharacter({ src: 'angler', keepOutfit: true }, function (r) {
-      if (!r) return;
-      anglerRig = r;
-      var tkA = registerTalker(anglerRig, 'angler');
-      addInteract({ id: 'npc-angler', label: 'TALK TO THE ANGLER', pos: r.obj.position, radius: 2.7,
-        action: function () { if (tkA) { tkA.line = (tkA.line + 1) % 3; tkA.t = 0.5; } } });
-      var ax = 3.7, az = 6.4;
-      r.obj.position.set(ax, W.terrainHeight(ax, az) + 0.04, az);
-      r.obj.rotation.y = M.atan2(7.5 - ax, 2 - az) + MODEL_FWD;
-      var bob = null;
-      r.obj.traverse(function (o) { if (o.name === 'Bobber' && !bob) bob = o; });
-      if (bob) { bob.userData.y0 = bob.position.y; r.bobber = bob; }
-      scene.add(r.obj);
     });
     attachAnimal(ASSETS.fox, 0.0065, 'Walk', 1.0, function (r) {
       if (!r) return;
@@ -900,7 +848,8 @@
     var k = ev.key.toLowerCase();
     if (['w', 'a', 's', 'd', 'arrowup', 'arrowdown', 'arrowleft', 'arrowright', ' '].indexOf(k) >= 0) {
       keys[k] = true;
-      if (k !== ' ') ev.preventDefault();
+      if (k === ' ') { if (!ev.repeat) jumpQueued = true; }
+      else ev.preventDefault();
     }
   });
   window.addEventListener('keyup', function (ev) { keys[ev.key.toLowerCase()] = false; });
@@ -1214,75 +1163,13 @@
   window.__NPC = function () {
     function pp(r) { return r && r.obj ? [+r.obj.position.x.toFixed(2), +r.obj.position.y.toFixed(2), +r.obj.position.z.toFixed(2)] : null; }
     return {
-      player: pp(playerRig), friend: pp(friendRig), angler: pp(anglerRig),
-      walkers: npcs.map(function (n) { return pp(n.rig); }),
+      player: pp(playerRig), air: !!player.air, vy: +(player.vy || 0).toFixed(2), jumps: GAME.jumps || 0,
       fox: pp(foxRig), horse: pp(horseRig), flamingos: flamingos.map(function (f) { return pp(f.rig); }),
       modelReady: modelReady
     };
   };
 
-  /* ---------- NPC speech bubbles ---------- */
-  var bubblesEl = document.getElementById('bubbles');
-  var FRIEND_BASE = ['Hey! Welcome to my little world.', 'Walk to the end of the trail, it is worth it.', 'The fox is friendly, I promise.'];
-  var FRIEND_STORY = {
-    home: "Let's explore this place together.",
-    about: "This is where Chandra tells his story.",
-    skills: "Careful - skills grow thick around here.",
-    projects: "These are some of Chandra's projects.",
-    education: "The university grounds. He studies here.",
-    contact: "This is where the trail ends. Talk soon!"
-  };
-  var NPC_TALK = {
-    friend: FRIEND_BASE.slice(),
-    angler: ['Shh, the fish are resting.', 'I once caught one this big. True story.', 'Monsoon makes the fish hide.'],
-    walker: ['Nice weather for a walk today.', 'The lake view is better up ahead.', 'Have you met the horse yet?'],
-    walker2: ['Almost at the projects board!', 'Night time here is magical. Try it.', 'Snow is my favorite season here.']
-  };
-  var talkers = [], STATION_ZS = null;
-  function registerTalker(rig, key) { var t = { rig: rig, key: key, el: null, line: 0, t: 0 }; talkers.push(t); return t; }
-  var tmpV3 = new THREE.Vector3();
-  function tickBubbles(dt) {
-    for (var i = 0; i < talkers.length; i++) {
-      var T = talkers[i];
-      if (!T.rig || !T.rig.head) continue;
-      var d = player.pos.distanceTo(T.rig.obj.position);
-      var inRange = d < 5.5;
-      if (inRange) {
-        T.t += dt;
-        if (!T.el) {
-          T.el = document.createElement('div');
-          T.el.className = 'bub';
-          bubblesEl.appendChild(T.el);
-          T.line = M.floor(M.random() * 3); T.t = 0;
-        }
-        if (T.t > 4.2) { T.t = 0; T.line = (T.line + 1) % 3; }
-        var lines = NPC_TALK[T.key];
-        if (T.key === 'friend') {
-          var story = null;
-          if (!STATION_ZS) {
-            STATION_ZS = STATIONS.map(function (s2) { return { z: W.trailPos(s2.p).z, id: s2.id }; });
-          }
-          for (var sI = 0; sI < STATION_ZS.length; sI++) {
-            if (M.abs(player.pos.z - STATION_ZS[sI].z) < 7) { story = FRIEND_STORY[STATION_ZS[sI].id]; break; }
-          }
-          lines = story ? [story].concat(FRIEND_BASE) : FRIEND_BASE;
-        }
-        if (T.el.textContent !== lines[T.line]) T.el.textContent = lines[T.line];
-        T.rig.head.getWorldPosition(tmpV3);
-        tmpV3.y += 0.32;
-        tmpV3.project(camera);
-        if (tmpV3.z < 1 && tmpV3.z > -1) {
-          T.el.style.display = 'block';
-          T.el.style.left = ((tmpV3.x * 0.5 + 0.5) * innerWidth) + 'px';
-          T.el.style.top = ((-tmpV3.y * 0.5 + 0.5) * innerHeight) + 'px';
-        } else T.el.style.display = 'none';
-      } else if (T.el) {
-        T.el.style.display = 'none';
-      }
-    }
-  }
-
-  /* ---------- footprints (pooled, weather-aware) ---------- */
+  /* ---------- footprints  /* ---------- footprints (pooled, weather-aware) ---------- */
   var FP_POOL = [], FP_MAX = 26;
   (function () {
     var geo = new THREE.CircleGeometry(0.085, 8);
@@ -1756,6 +1643,11 @@
   }
 
   var fpsEma = 60, lowFpsT = 0, autoQualityDone = false;
+  /* ballistic jump physics (semi-implicit Euler): v0 6.8 m/s, g 20 m/s^2 -> apex ~1.16 m, air time ~0.68 s */
+  var JUMP_V0 = 6.8, JUMP_G = 20, jumpQueued = false;
+  GAME.jumps = GAME.jumps || 0; GAME.landings = GAME.landings || 0;
+  var thruster = new THREE.PointLight(0x66baff, 0, 3.4);
+  scene.add(thruster);
   function tick(now) {
     requestAnimationFrame(tick);
     var dt = M.min(0.05, (now - last) / 1000);
@@ -1824,6 +1716,7 @@
          momentum carries the last direction while stopping */
       var targetSpeed = mlen > 0.06 ? mlen * spd : 0;
       var accelK = targetSpeed > player.hSpeed ? 7.5 : 11;
+      if (player.air) accelK = 2.2; /* reduced steering authority while airborne */
       player.hSpeed += (targetSpeed - player.hSpeed) * (1 - M.exp(-accelK * dt));
       if (player.hSpeed < 0.006) player.hSpeed = 0;
       if (mlen > 0.06) { player.lastMx = mx / mlen; player.lastMz = mz / mlen; }
@@ -1846,16 +1739,31 @@
         else if (!inWater(player.pos.x, nz)) { player.pos.z = nz; }
         if (mlen > 0.06)
           player.yaw = angLerp(player.yaw, M.atan2(-mx, -mz) - MODEL_FWD, M.min(1, dt * (7 + 5 * (1 - M.min(1, player.hSpeed / 3)))));
-        var nowBridge = M.abs(player.pos.z - BR.z) < BR.half && player.pos.x > BR.x0 && player.pos.x < BR.x1;
-        if (nowBridge) player.pos.y = M.max(W.terrainHeight(player.pos.x, player.pos.z), W.deckY(player.pos.x)) + 0.1;
       }
+      /* ground height under the player: terrain, bridge deck, or viewpoint deck */
+      var groundY = W.terrainHeight(player.pos.x, player.pos.z) + 0.04;
+      if (M.abs(player.pos.z - W.bridge.z) < W.bridge.half && player.pos.x > W.bridge.x0 && player.pos.x < W.bridge.x1)
+        groundY = M.max(groundY - 0.04, W.deckY(player.pos.x)) + 0.1;
       var vdeck = (window.PLACES && PLACES.deckAt) ? PLACES.deckAt(player.pos.x, player.pos.z) : null;
-      if (vdeck !== null) player.pos.y = vdeck + 0.12;
-      if (!(M.abs(player.pos.z - W.bridge.z) < W.bridge.half && player.pos.x > W.bridge.x0 && player.pos.x < W.bridge.x1))
-        player.pos.y = W.terrainHeight(player.pos.x, player.pos.z) + 0.04;
+      if (vdeck !== null) groundY = vdeck + 0.12;
+      /* vertical: jump request -> ballistic arc; walk off a ledge -> free fall */
+      if (jumpQueued) { jumpQueued = false; if (!player.air) { player.air = true; player.vy = JUMP_V0; GAME.jumps++; } }
+      if (player.air) {
+        player.vy -= JUMP_G * dt;
+        player.pos.y += player.vy * dt;
+        if (player.pos.y <= groundY) { player.pos.y = groundY; player.vy = 0; player.air = false; GAME.landings++; }
+      } else if (player.pos.y - groundY > 0.3) {
+        player.air = true; player.vy = 0;
+      } else {
+        player.pos.y = groundY;
+      }
+      /* repulsor glow while airborne */
+      thruster.position.set(player.pos.x, player.pos.y + 0.4, player.pos.z);
+      thruster.intensity += ((player.air ? 1.35 : 0) - thruster.intensity) * (1 - M.exp(-10 * dt));
       smoothP = clamp((W.TRAIL_Z0 - player.pos.z) / W.TRAIL_LEN, 0, 1);
       GAME.p = smoothP;
     } else {
+      player.air = false; player.vy = 0;
       if (tour.on) {
         var tst = STATIONS[M.min(tour.i, STATIONS.length - 1)];
         var dtp = tst.p - smoothP;
@@ -1955,94 +1863,6 @@
       trailMarker.style.left = pct + '%';
     }
 
-    if (friendRig) {
-      friendRig.mixer.update(dt);
-      /* companion: follows the player everywhere */
-      var fwdX = M.sin(player.yaw), fwdZ = M.cos(player.yaw);
-      var tgx, tgz;
-      if (walkMode) {
-        tgx = player.pos.x - fwdX * 1.75 + fwdZ * 0.85;
-        tgz = player.pos.z - fwdZ * 1.75 - fwdX * 0.85;
-      } else {
-        var fp = W.trailPos(clamp(smoothP - 0.032, 0, 1));
-        tgx = fp.x - 1.15; tgz = fp.z;
-      }
-      tgx = clamp(tgx, -12.5, 16.5); tgz = clamp(tgz, -42, 44);
-      // keep the friend out of the lake (unless the player is on the bridge)
-      var fdx = tgx - 7.5, fdz = tgz - 2, fdl = M.sqrt(fdx * fdx + fdz * fdz);
-      var onBridgeF = M.abs(player.pos.z - W.bridge.z) < W.bridge.half && player.pos.x > W.bridge.x0 && player.pos.x < W.bridge.x1;
-      if (fdl < 6.4 && !onBridgeF && fdl > 0.01) { tgx = 7.5 + fdx / fdl * 6.4; tgz = 2 + fdz / fdl * 6.4; }
-      var fpx = friendRig.obj.position;
-      var dx3 = tgx - fpx.x, dz3 = tgz - fpx.z;
-      var dDist = M.sqrt(dx3 * dx3 + dz3 * dz3);
-      var fSpd = 0;
-      if (dDist > 0.4) {
-        fSpd = M.min(dDist > 4.5 ? 3.6 : 2.4, dDist / M.max(dt, 0.001));
-        fpx.x += dx3 / dDist * fSpd * dt;
-        fpx.z += dz3 / dDist * fSpd * dt;
-        friendRig.obj.rotation.y = M.atan2(dx3, dz3) + MODEL_FWD;
-      } else if (dDist < 0.4) {
-        friendRig.obj.rotation.y = angLerp(friendRig.obj.rotation.y, M.atan2(player.pos.x - fpx.x, player.pos.z - fpx.z) + MODEL_FWD, M.min(1, dt * 5));
-      }
-      var onBridgeF2 = M.abs(fpx.z - W.bridge.z) < W.bridge.half && fpx.x > W.bridge.x0 && fpx.x < W.bridge.x1;
-      fpx.y = (onBridgeF2 ? M.max(W.terrainHeight(fpx.x, fpx.z), W.deckY(fpx.x)) : W.terrainHeight(fpx.x, fpx.z)) + 0.04;
-      var fIdle = fSpd < 0.2 ? 1 : 0;
-      var fRun = fSpd > 3.0 ? 1 : 0;
-      var fWalk = fSpd > 0.2 ? 1 : 0;
-      friendRig.actions.idle.setEffectiveWeight(fIdle);
-      friendRig.actions.walk.setEffectiveWeight(fWalk * (1 - fRun));
-      friendRig.actions.run.setEffectiveWeight(fRun);
-      friendRig.phase = (friendRig.phase || 0) + dt * clamp(fSpd, 0, 3.2) * 5.2;
-      armSwing(friendRig, friendRig.phase, 0.45 * clamp(fSpd / 1.2, 0, 1));
-      var near = player.pos.distanceTo(fpx) < 12;
-      if (near) {
-        tmpV.copy(player.pos);
-        var lp = friendRig.obj.worldToLocal(tmpV);
-        headTurn(friendRig, clamp(M.atan2(lp.x, -lp.z), -0.8, 0.8) * 0.6);
-      } else {
-        headTurn(friendRig, M.sin(tSec * 0.4) * 0.25);
-      }
-    }
-    for (var w = 0; w < npcs.length; w++) {
-      var N = npcs[w];
-      N.t += N.dir * N.speed * dt / W.TRAIL_LEN;
-      if (N.t > N.t1) { N.t = N.t1; N.dir = -1; }
-      if (N.t < N.t0) { N.t = N.t0; N.dir = 1; }
-      var wp = W.trailPos(N.t);
-      N.rig.obj.position.set(N.x, W.terrainHeight(N.x, wp.z) + 0.04, wp.z);
-      N.rig.obj.rotation.y = (N.dir > 0 ? PI : 0) + MODEL_FWD;
-      N.rig.actions.idle.setEffectiveWeight(0);
-      N.rig.actions.walk.setEffectiveWeight(1);
-      N.rig.actions.run.setEffectiveWeight(0);
-      N.rig.mixer.update(dt);
-      N.phase = (N.phase || 0) + dt * N.speed * 5.4;
-      armSwing(N.rig, N.phase, 0.5);
-    }
-    if (anglerRig) {
-      anglerRig.mixer.update(dt);
-      if (anglerRig.bobber) anglerRig.bobber.position.y = anglerRig.bobber.userData.y0 + M.sin(tSec * 1.8) * 0.045;
-    }
-    for (var cn = 0; cn < campusNpcs.length; cn++) {
-      var CN = campusNpcs[cn];
-      CN.rig.mixer.update(dt);
-      var dist = M.sqrt((CN.b.x - CN.a.x) * (CN.b.x - CN.a.x) + (CN.b.z - CN.a.z) * (CN.b.z - CN.a.z)) || 1;
-      if (CN.wait > 0) {
-        CN.wait -= dt;
-        var acts = CN.rig.actions || {};
-        for (var k5 in acts) acts[k5].setEffectiveWeight(k5 === 'idle' ? 1 : 0);
-        CN.rig.obj.rotation.y += M.sin(tSec * 0.4 + cn) * 0.003;
-      } else {
-        var acts2 = CN.rig.actions || {};
-        for (var k6 in acts2) acts2[k6].setEffectiveWeight(k6 === 'walk' ? 1 : 0);
-        CN.t += CN.dir * (CN.speed / dist) * dt;
-        if (CN.t >= 1) { CN.t = 1; CN.dir = -1; CN.wait = 2 + M.random() * 4; }
-        if (CN.t <= 0) { CN.t = 0; CN.dir = 1; CN.wait = 2 + M.random() * 4; }
-        var nx2 = CN.a.x + (CN.b.x - CN.a.x) * CN.t, nz2 = CN.a.z + (CN.b.z - CN.a.z) * CN.t;
-        CN.rig.obj.position.set(nx2, W.terrainHeight(nx2, nz2) + 0.04, nz2);
-        CN.rig.obj.rotation.y = M.atan2(CN.dir > 0 ? CN.b.x - CN.a.x : CN.a.x - CN.b.x, CN.dir > 0 ? CN.b.z - CN.a.z : CN.a.z - CN.b.z);
-        armSwing(CN.rig, tSec * CN.speed * 5.4, 0.5);
-      }
-    }
     if (foxRig) {
       var fd = player.pos.distanceTo(foxRig.obj.position);
       if (!foxState) foxState = { mode: 'wander', t: 4 };
@@ -2138,7 +1958,6 @@
       lamps[li].light.intensity = 0.55 + nf * 1.05;
       lamps[li].bulb.visible = nf > 0.08;
     }
-    tickBubbles(dt);
     tickWildlife(dt, tSec);
     if (horseRig) {
       var ha = tSec * 0.3;
@@ -2230,7 +2049,7 @@
   loadAll(function () {
     buildCharacters();
     buildStations();
-    try { PLACES.build({ scene: scene, W: W, addInteract: addInteract, openCard: openCard, openProject: openProject, HQ: W.HQ, DATA: DATA, toast: toastMsg, player: player, playerRig: playerRig, openJourney: openJourney, STATE: STATE, STATIONS: STATIONS, spawnCampusWalker: spawnCampusWalker, PROJECT_ARCH: DOSSIER_ARCH }); } catch (e) { GAME.errors.push('places: ' + e.message); }
+    try { PLACES.build({ scene: scene, W: W, addInteract: addInteract, openCard: openCard, openProject: openProject, HQ: W.HQ, DATA: DATA, toast: toastMsg, player: player, playerRig: playerRig, openJourney: openJourney, STATE: STATE, STATIONS: STATIONS, PROJECT_ARCH: DOSSIER_ARCH }); } catch (e) { GAME.errors.push('places: ' + e.message); }
     try { PLACES.updateWaystation(STATE, DATA); } catch (e) {}
     buildOrbs();
     markGroup('world', true);

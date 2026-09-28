@@ -604,11 +604,6 @@
           CAMPUS_LAMPS.push({ light: light, mat: lampMat });
         }
       });
-      /* two students walking the campus */
-      if (spawnCampusWalker) {
-        spawnCampusWalker({ x: -4.6, z: -16.8 }, { x: -12.6, z: -15.2 }, { top: 0x5a7a9b, bottom: 0x2e3844 }, 0.85);
-        spawnCampusWalker({ x: -6.2, z: -19.6 }, { x: -11.6, z: -19.0 }, { top: 0x8a5a7b, bottom: 0x33302e }, 0.72);
-      }
     })();
 
     /* ============ achievements waystation (between education and contact) ============ */

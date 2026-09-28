@@ -19,7 +19,7 @@ four seasons and weather:
 | Waterfall & river | east | falling water, droplet spray, fish in the pond, flowing river outlet |
 | Bridge | over the pond | wooden crossing with footsteps audio |
 | Project District | west, mid-trail | Survival School / Signal-Lite / SaiU V2 buildings, rotating architecture holograms, reserved plot, Iron Man statue, secret dev room behind the waterfall |
-| University campus | west, lower trail | SAI UNIVERSITY block, library, notice board with real marks, study courtyard, two student NPCs, night lamps |
+| University campus | west, lower trail | SAI UNIVERSITY block, library, notice board with real marks, study courtyard, night lamps |
 | Waystation | before the end | six plinths that light up per discovered station, journey obelisk |
 | Final viewpoint | south end | elevated deck with ramp, railing, bench and brass telescope overlooking the world |
 
@@ -30,7 +30,7 @@ butterflies anchored to the flower beds.
 ## Controls
 
 - **Scroll** — walk the journey; cards open at stations
-- **WALK button** — free walk: WASD / arrows, Shift to run, E to interact, ESC for menu
+- **WALK button** — free walk: WASD / arrows, Shift to run, Space to jump (ballistic arc, reduced air control), E to interact, ESC for menu
 - **ESC** — pause menu (guided tour, photo mode, cinematic, journey & achievements, jump-to, reset)
 - **P** / **C** — photo mode / cinematic mode
 - **F** — take a photo in photo mode (downloads a PNG)

@@ -102,7 +102,7 @@
     'Stop at any board along the trail to read it.',
     'Try every season. Even the monsoon.',
     'At night, look for the fireflies.',
-    'The angler by the lake never tells the whole truth.'
+    'Night lamps light the campus paths after dusk.'
   ];
 
   window.DATA = {

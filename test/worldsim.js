@@ -226,6 +226,20 @@ async function main() {
   console.log('\n== free walk ==');
   document.getElementById('btn-walk').click();
   await step(3);
+  /* jump physics: press SPACE, rise, then land */
+  const gAt = (x, z) => { const vd = (window.PLACES && window.PLACES.deckAt) ? window.PLACES.deckAt(x, z) : null; return vd !== null ? vd + 0.12 : window.WORLD.terrainHeight(x, z) + 0.04; };
+  keyDown(' ');
+  await step(8);
+  const jp = window.__NPC();
+  const jGroundY = gAt(jp.player[0], jp.player[2]);
+  check('jump leaves the ground', jp.air && jp.player[1] > jGroundY + 0.05, 'y=' + jp.player[1] + ' air=' + jp.air);
+  check('jump velocity integrates (vy set)', typeof jp.vy === 'number', 'vy=' + jp.vy);
+  await step(90);
+  const jl = window.__NPC();
+  const jGroundY2 = gAt(jl.player[0], jl.player[2]);
+  check('jump lands back on the ground', !jl.air && Math.abs(jl.player[1] - jGroundY2) < 0.05, 'y=' + jl.player[1] + ' ground=' + jGroundY2.toFixed(2));
+  check('landing telemetry counted', (window.__GAME.landings || 0) >= 1, window.__GAME.landings + ' landings');
+  keyUp(' ');
   const z0 = window.__GAME.model.position.z;
   keyDown('w'); await step(240); keyUp('w');
   const z1 = window.__GAME.model.position.z;
@@ -351,10 +365,9 @@ async function main() {
   check('project holograms built', stats.holograms === 3, stats.holograms + ' holograms');
   check('campus lamps lit-able', stats.lamps >= 3, stats.lamps + ' lamps');
   const npcTel = (typeof window.__NPC === 'function') ? window.__NPC() : null;
-  check('companion NPC spawned', npcTel && !!npcTel.friend, 'friend=' + (npcTel ? !!npcTel.friend : 'n/a'));
-  check('angler NPC spawned', npcTel && !!npcTel.angler, 'angler=' + (npcTel ? !!npcTel.angler : 'n/a'));
-  check('trail walkers spawned', npcTel && npcTel.walkers && npcTel.walkers.length >= 2, 'walkers=' + (npcTel && npcTel.walkers ? npcTel.walkers.length : 'n/a'));
-  check('campus students spawned', (window.__CAMPUS || []).length >= 2, (window.__CAMPUS || []).length + ' students');
+  check('player rig spawned (Iron Man only)', npcTel && !!npcTel.player, 'player=' + (npcTel ? !!npcTel.player : 'n/a'));
+  check('no other persons spawned', !window.__CAMPUS && !document.getElementById('bubbles') && !document.querySelector('.bub'), 'single-character world');
+  check('wildlife still present', npcTel && !!npcTel.fox, 'fox=' + (npcTel ? !!npcTel.fox : 'n/a'));
   check('fish are swimming', true);
 
   /* ---------- persistence ---------- */
