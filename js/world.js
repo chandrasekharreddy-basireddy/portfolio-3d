@@ -1030,7 +1030,7 @@
         u.cx += (tgt.x - u.cx) * M.min(1, dt * 0.5);
         u.cz += (tgt.z - u.cz) * M.min(1, dt * 0.5);
         var rr = 0.28;
-        bf.position.set(u.cx + M.cos(a * 1.4) * rr, W.terrainHeight(u.cx, u.cz) + u.h * 0.55 + M.sin(tSec * 2.2 + u.ph) * 0.12, u.cz + M.sin(a * 1.4) * rr);
+        bf.position.set(u.cx + M.cos(a * 1.4) * rr, terrainHeight(u.cx, u.cz) + u.h * 0.55 + M.sin(tSec * 2.2 + u.ph) * 0.12, u.cz + M.sin(a * 1.4) * rr);
       } else {
         bf.position.set(u.cx + M.cos(a) * u.r, u.h + M.sin(tSec * 2.2 + u.ph) * 0.25, u.cz + M.sin(a * 1.3) * u.r);
       }
